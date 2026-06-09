@@ -1,0 +1,21 @@
+{
+  "name": "@aigcs/edgeone",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aigcs/server": "workspace:*",
+    "mysql2": "^3.22.5",
+    "pg": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.16.0",
+    "@types/pg": "^8.20.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^6.0.3"
+  }
+}

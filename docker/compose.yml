@@ -1,0 +1,61 @@
+services:
+  aigcs:
+    image: openaigcs/aigcs:latest
+    container_name: aigcs
+    restart: unless-stopped
+    ports:
+      - "41905:41905"
+
+    # ── 网络 ──
+    # 本地测试时可取消注释，使容器共享宿主机网络栈。
+    # 这样容器内可访问 localhost/127.0.0.1 上的服务（如 Hugo dev server）。
+    # 注意：host 模式下 ports 不生效，直接通过宿主机端口访问。
+    # network_mode: host
+
+    # ── 环境变量 ──
+    # 优先级：environment 块 > .env.local > .env > 默认值
+    # 变量值中的 ${VAR:-default} 语法会从 .env 或 .env.local 文件读取，
+    # 如果未设置则使用 default。
+    environment:
+      - PORT=${PORT:-41905}
+      - DATABASE_URL=${DATABASE_URL:-file:./data/aigcs.db}
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
+      - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
+      - ADMIN_URL=${ADMIN_URL:-}
+      # ── SMTP (可选) ──
+      # SMTP_HOST=${SMTP_HOST:-}
+      # SMTP_PORT=${SMTP_PORT:-}
+      # SMTP_USER=${SMTP_USER:-}
+      # SMTP_PASS=${SMTP_PASS:-}
+      # SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-}
+      # SMTP_FROM_NAME=${SMTP_FROM_NAME:-}
+      # ── 验证码 (可选) ──
+      # CAPTCHA_PROVIDER=${CAPTCHA_PROVIDER:-}
+      # TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY:-}
+      # TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-}
+      # RECAPTCHA_SITE_KEY=${RECAPTCHA_SITE_KEY:-}
+      # RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY:-}
+      # GEETEST_CAPTCHA_ID=${GEETEST_CAPTCHA_ID:-}
+      # GEETEST_CAPTCHA_KEY=${GEETEST_CAPTCHA_KEY:-}
+      # CAP_SITE_KEY=${CAP_SITE_KEY:-}
+      # CAP_SECRET_KEY=${CAP_SECRET_KEY:-}
+      # CAP_VERIFY_URL=${CAP_VERIFY_URL:-}
+      # ALTCHA_SITE_KEY=${ALTCHA_SITE_KEY:-}
+      # ALTCHA_SECRET_KEY=${ALTCHA_SECRET_KEY:-}
+      # HCAPTCHA_SITE_KEY=${HCAPTCHA_SITE_KEY:-}
+      # HCAPTCHA_SECRET_KEY=${HCAPTCHA_SECRET_KEY:-}
+      # ── 其他 (可选) ──
+      # ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      # REGISTRATION_OPEN=${REGISTRATION_OPEN:-}
+      # GLOBAL_SYSTEM_PROMPT=${GLOBAL_SYSTEM_PROMPT:-}
+
+    volumes:
+      - ./data:/app/data
+
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:41905/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

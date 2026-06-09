@@ -1,0 +1,11 @@
+{
+  "name": "@aigcs/plugin-native",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.ts",
+  "description": "Stores visitor comments in the local AIGCS database.",
+  "dependencies": {
+    "handlebars": "^4.7.9",
+    "nodemailer": "^8.0.10"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "declaration": false,
+    "declarationMap": false,
+    "rootDir": "../..",
+    "lib": ["ES2022"],
+    "skipLibCheck": true,
+    "paths": {
+      "@aigcs/core": ["../core/src/index.ts"],
+      "@aigcs/core/*": ["../core/src/*"],
+      "@aigcs/server": ["../server/src/index.ts"],
+      "@aigcs/server/*": ["../server/src/*"]
+    }
+  },
+  "include": ["src"]
+}

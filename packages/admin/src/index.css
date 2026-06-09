@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+.dark {
+  color-scheme: dark;
+  color: #e5e7eb;
+}
+
+.dark .text-gray-500 { color: #9ca3af; }
+.dark .text-gray-400 { color: #6b7280; }
+.dark .text-red-500 { color: #fca5a5; }
+.dark .text-red-600 { color: #fca5a5; }
+.dark .text-green-500 { color: #86efac; }
+.dark .text-green-600 { color: #86efac; }
+.dark .text-blue-500 { color: #93c5fd; }
+.dark .text-blue-600 { color: #93c5fd; }
+
+th { white-space: nowrap; }

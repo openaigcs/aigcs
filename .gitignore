@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.agents
+.codex
+.docs
+.env
+.env.local
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+.turbo
+tsconfig.tsbuildinfo
+cloud-functions/

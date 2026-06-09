@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1781179437670,
+      "tag": "0000_clumsy_emma_frost",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1781628072452,
+      "tag": "0001_sleepy_maximus",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1782306582513,
+      "tag": "0002_stiff_starjammers",
+      "breakpoints": true
+    }
+  ]
+}

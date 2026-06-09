@@ -1,0 +1,31 @@
+{
+  "name": "aigcs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-Generated Comments System",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "clean": "turbo clean",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "edgeone:build": "pnpm --filter @aigcs/edgeone run build",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx,json}\""
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.4",
+    "drizzle-kit": "^0.31.10",
+    "prettier": "^3.9.3",
+    "turbo": "^2.10.0",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1"
+  }
+}

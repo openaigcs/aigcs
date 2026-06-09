@@ -1,0 +1,16 @@
+{
+  "name": "mastodon",
+  "version": "1.0.0",
+  "description": "Fediverse comment integration plugin",
+  "main": "index.ts",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "hono": "^4.12.25",
+    "zod": "^4.4.3",
+    "@hono/zod-validator": "^0.8.0",
+    "nanoid": "^5.1.11",
+    "drizzle-orm": "^0.45.2",
+    "@aigcs/core": "workspace:*"
+  }
+}

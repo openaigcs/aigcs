@@ -185,15 +185,17 @@ router.post('/register', zValidator('json', registerSchema), async (c) => {
       const { isUnsubscribed, buildUnsubscribeUrl } = await import('../services/unsubscribe.js')
       if (isUnsubscribed(raw, email.toLowerCase(), 'global')) return
       const { sendEmail } = await import('../services/email.js')
-      const { renderEmail } = await import('../email-templates/index.js')
+      const { renderEmail, getEmailSubject, getEmailLocale } = await import('../email-templates/index.js')
       const adminUrl = process.env.ADMIN_URL || 'http://localhost:5173'
-      const unsubscribeUrl = buildUnsubscribeUrl(adminUrl, email.toLowerCase(), 'global', 'en')
-      sendEmail(email, 'Welcome to AIGCS', renderEmail({
+      const emailLocale = getEmailLocale(raw)
+      const unsubscribeUrl = buildUnsubscribeUrl(adminUrl, email.toLowerCase(), 'global', emailLocale)
+      sendEmail(email, getEmailSubject('welcome', emailLocale), renderEmail({
         template: 'welcome',
-        title: 'Welcome to AIGCS',
+        locale: emailLocale,
+        title: getEmailSubject('welcome', emailLocale),
         data: { email },
         unsubscribeUrl,
-        unsubscribeText: 'Unsubscribe',
+        unsubscribeText: emailLocale === 'zh' ? '取消订阅' : 'Unsubscribe',
       }))
     }
   } catch (err) {

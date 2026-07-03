@@ -386,7 +386,7 @@ export const Route = createRoute({
                               className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono min-h-[100px]"
                               value={String(val)}
                               onChange={e => setSettingsValues(prev => ({ ...prev, [k]: e.target.value }))}
-                              placeholder={'<p>{{authorName}} replied:</p>\n<blockquote>{{content}}</blockquote>'}
+                              placeholder={t('pluginsPage.replyNotificationDefaultTemplate')}
                             />
                             <p className="text-xs text-gray-400 mt-1">{t('pluginsPage.replyNotificationTemplateHint')}</p>
                           </div>

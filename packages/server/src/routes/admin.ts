@@ -56,6 +56,8 @@ const ALLOWED_CONFIG_KEYS = new Set([
   'global_system_prompt', 'allowed_origins',
   'provider_defaults',
   'site_title', 'site_favicon',
+  'email_notify_comments',
+  'email_locale',
 ])
 
 const SENSITIVE_CONFIG_KEYS = new Set([
@@ -1576,11 +1578,12 @@ router.post('/system/smtp-test', requireRole('admin'), async (c) => {
     try { body = await c.req.json() } catch { /* ignore */ }
     const targetEmail = body.email || c.get('user')!.email
     const { sendEmail } = await import('../services/email.js')
-    const { renderEmail } = await import('../email-templates/index.js')
+    const { renderEmail, getEmailSubject, getEmailLocale } = await import('../email-templates/index.js')
+    const emailLocale = getEmailLocale(getRawDb())
     await sendEmail(
       targetEmail,
-      'AIGCS SMTP Test',
-      renderEmail({ template: 'smtp-test', title: 'SMTP Test' }),
+      getEmailSubject('smtp-test', emailLocale),
+      renderEmail({ template: 'smtp-test', locale: emailLocale, title: getEmailSubject('smtp-test', emailLocale) }),
     )
     return c.json({ code: 0, data: { message: 'Test email sent successfully' } })
   } catch (err) {

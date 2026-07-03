@@ -30,5 +30,6 @@ export const systemConfig = sqliteTable('system_config', {
   rateLimitMax: integer('rate_limit_max').notNull().default(100),
   rateLimitWindow: integer('rate_limit_window').notNull().default(60),
   providerDefaults: text('provider_defaults'),
+  emailLocale: text('email_locale').notNull().default('en'),
   updatedAt: text('updated_at'),
 })

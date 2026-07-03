@@ -575,15 +575,20 @@ router.post('/:domain/comment/:id/request-delete', async (c) => {
 
   // Send email with code FIRST, then store in DB
   try {
-    const { renderEmail } = await import('../email-templates/index.js')
-    const unsubscribeUrl = buildUnsubscribeUrl(adminUrl, body.email.toLowerCase(), site.id, locale)
+    const { renderEmail, getEmailSubject, getEmailLocale } = await import('../email-templates/index.js')
+    const emailLocale = getEmailLocale(raw)
+    const unsubscribeUrl = buildUnsubscribeUrl(adminUrl, body.email.toLowerCase(), site.id, emailLocale)
     const emailHtml = renderEmail({
       template: 'delete-code',
-      title: '验证码',
-      locale: 'zh',
-      data: { prompt: '您的评论删除验证码为：', code, expiryHint: '验证码有效期为 30 分钟。' },
+      title: getEmailSubject('delete-code', emailLocale),
+      locale: emailLocale,
+      data: {
+        prompt: emailLocale === 'zh' ? '您的评论删除验证码为：' : 'Your verification code to delete comment:',
+        code,
+        expiryHint: emailLocale === 'zh' ? '验证码有效期为 30 分钟。' : 'The code expires in 30 minutes.',
+      },
       unsubscribeUrl,
-      unsubscribeText,
+      unsubscribeText: emailLocale === 'zh' ? '取消订阅' : 'Unsubscribe',
     })
     const pluginName = ((site as any).settings?.commentPlugin as string) || ''
     const pluginRow = raw.prepare("SELECT settings FROM plugins WHERE name = ?").get(pluginName) as any
@@ -906,25 +911,27 @@ async function generateComments(siteId: string, path: string, siteDomain?: strin
     const siteSettings = (site as any)?.settings || {}
     if (site && siteSettings.emailNotifyComments) {
       const { sendEmail } = await import('../services/email.js')
-      const { renderEmail } = await import('../email-templates/index.js')
+      const { renderEmail, getEmailSubject, getEmailLocale } = await import('../email-templates/index.js')
       const user = db.select().from(users).where(eq(users.id, site.userId)).get() as any
       if (user?.email && !isUnsubscribed(raw, user.email, siteId)) {
         const adminUrl = process.env.ADMIN_URL || 'http://localhost:5173'
+        const emailLocale = getEmailLocale(raw)
         const templateData = { path, domain: site.domain }
         let body: string | undefined
         if (siteSettings.commentGeneratedTemplate) {
           const Handlebars = (await import('handlebars')).default
           body = Handlebars.compile(siteSettings.commentGeneratedTemplate)(templateData)
         }
-        const unsubscribeUrl = buildUnsubscribeUrl(adminUrl, user.email, siteId, 'en')
-        const unsubscribeText = 'Unsubscribe'
+        const unsubscribeUrl = buildUnsubscribeUrl(adminUrl, user.email, siteId, emailLocale)
+        const unsubscribeText = emailLocale === 'zh' ? '取消订阅' : 'Unsubscribe'
         sendEmail(
           user.email,
-          `New comments generated for ${site.domain}${path}`,
+          getEmailSubject('comment-generated', emailLocale),
           renderEmail({
             template: body ? undefined : 'comment-generated',
             body,
-            title: 'New AI Comments Generated',
+            locale: emailLocale,
+            title: getEmailSubject('comment-generated', emailLocale),
             data: templateData,
             adminUrl,
             unsubscribeUrl,

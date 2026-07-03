@@ -248,6 +248,8 @@ CREATE INDEX IF NOT EXISTS idx_sites_user ON sites(user_id);
   try { raw.exec("ALTER TABLE system_config ADD COLUMN altcha_secret_key TEXT"); } catch {}
   try { raw.exec("ALTER TABLE system_config ADD COLUMN hcaptcha_site_key TEXT"); } catch {}
   try { raw.exec("ALTER TABLE system_config ADD COLUMN hcaptcha_secret_key TEXT"); } catch {}
+  // Add email_locale column to existing databases
+  try { raw.exec("ALTER TABLE system_config ADD COLUMN email_locale TEXT NOT NULL DEFAULT 'en'"); } catch {}
 
   // Visitor comments table (comment plugins)
   raw.exec(`
@@ -368,6 +370,32 @@ CREATE INDEX IF NOT EXISTS idx_mastodon_cache_binding ON mastodon_cached_comment
 `)
 
   console.log('[db] SQLite schema migrated successfully')
+
+  // ── Versioned migrations ──
+  const MIGRATIONS: Array<{ version: number; name: string; run: (raw: any) => void }> = [
+    // Future migrations go here, e.g.:
+    // { version: 1, name: 'add some_column to table', run: (raw) => {
+    //   try { raw.exec("ALTER TABLE xxx ADD COLUMN some_column TEXT"); } catch {}
+    // }},
+  ]
+
+  // Create version tracking table
+  raw.exec(`CREATE TABLE IF NOT EXISTS _schema_version (version INTEGER NOT NULL DEFAULT 0)`)
+  const row = raw.prepare('SELECT version FROM _schema_version LIMIT 1').get() as { version: number } | undefined
+  let currentVersion = row?.version ?? 0
+
+  for (const migration of MIGRATIONS) {
+    if (migration.version > currentVersion) {
+      console.log(`[db] Running migration v${migration.version}: ${migration.name}`)
+      migration.run(raw)
+      if (row) {
+        raw.prepare('UPDATE _schema_version SET version = ?').run(migration.version)
+      } else {
+        raw.prepare('INSERT INTO _schema_version (version) VALUES (?)').run(migration.version)
+      }
+      currentVersion = migration.version
+    }
+  }
 }
 
 async function migrateMysql() {
@@ -617,6 +645,8 @@ CREATE INDEX idx_sites_user ON sites(user_id);
     try { await connection.execute("ALTER TABLE system_config ADD COLUMN hcaptcha_secret_key TEXT"); } catch {}
     // Add CAP verify URL column to existing databases
     try { await connection.execute("ALTER TABLE system_config ADD COLUMN cap_verify_url TEXT"); } catch {}
+    // Add email_locale column to existing databases
+    try { await connection.execute("ALTER TABLE system_config ADD COLUMN email_locale VARCHAR(10) NOT NULL DEFAULT 'en'"); } catch {}
 
     // Add visitor_comments columns to existing databases
     try { await connection.execute("ALTER TABLE visitor_comments ADD COLUMN parent_id VARCHAR(36)"); } catch {}
@@ -690,6 +720,29 @@ CREATE TABLE IF NOT EXISTS mastodon_cached_comments (
 `)
 
     console.log('[db] MySQL schema migrated successfully')
+
+    // ── Versioned migrations ──
+    const MIGRATIONS: Array<{ version: number; name: string; run: (conn: any) => Promise<void> }> = [
+      // Future migrations here
+    ]
+
+    await connection.execute('CREATE TABLE IF NOT EXISTS _schema_version (version INT NOT NULL DEFAULT 0)')
+    const [rows] = await connection.execute('SELECT version FROM _schema_version LIMIT 1')
+    const mysqlRow = (rows as any[])[0]
+    let mysqlVersion = mysqlRow?.version ?? 0
+
+    for (const migration of MIGRATIONS) {
+      if (migration.version > mysqlVersion) {
+        console.log(`[db] Running migration v${migration.version}: ${migration.name}`)
+        await migration.run(connection)
+        if (mysqlRow) {
+          await connection.execute('UPDATE _schema_version SET version = ?', [migration.version])
+        } else {
+          await connection.execute('INSERT INTO _schema_version (version) VALUES (?)', [migration.version])
+        }
+        mysqlVersion = migration.version
+      }
+    }
   } finally {
     connection.release()
   }
@@ -932,6 +985,8 @@ CREATE INDEX IF NOT EXISTS idx_sites_user ON sites(user_id);
     try { await client.query("ALTER TABLE system_config ADD COLUMN hcaptcha_secret_key TEXT"); } catch {}
     // Add CAP verify URL column to existing databases
     try { await client.query("ALTER TABLE system_config ADD COLUMN cap_verify_url TEXT"); } catch {}
+    // Add email_locale column to existing databases
+    try { await client.query("ALTER TABLE system_config ADD COLUMN email_locale VARCHAR(10) NOT NULL DEFAULT 'en'"); } catch {}
 
     // Add visitor_comments columns to existing databases
     try { await client.query("ALTER TABLE visitor_comments ADD COLUMN parent_id TEXT"); } catch {}
@@ -1005,6 +1060,29 @@ CREATE INDEX IF NOT EXISTS idx_mcc_binding ON mastodon_cached_comments(binding_i
 `)
 
     console.log('[db] PostgreSQL schema migrated successfully')
+
+    // ── Versioned migrations ──
+    const MIGRATIONS: Array<{ version: number; name: string; run: (client: any) => Promise<void> }> = [
+      // Future migrations here
+    ]
+
+    await client.query('CREATE TABLE IF NOT EXISTS _schema_version (version INT NOT NULL DEFAULT 0)')
+    const pgResult = await client.query('SELECT version FROM _schema_version LIMIT 1')
+    const pgRow = pgResult.rows[0]
+    let pgVersion = pgRow?.version ?? 0
+
+    for (const migration of MIGRATIONS) {
+      if (migration.version > pgVersion) {
+        console.log(`[db] Running migration v${migration.version}: ${migration.name}`)
+        await migration.run(client)
+        if (pgRow) {
+          await client.query('UPDATE _schema_version SET version = $1', [migration.version])
+        } else {
+          await client.query('INSERT INTO _schema_version (version) VALUES ($1)', [migration.version])
+        }
+        pgVersion = migration.version
+      }
+    }
   } finally {
     client.release()
   }

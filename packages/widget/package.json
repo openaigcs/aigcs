@@ -1,9 +1,13 @@
 {
   "name": "@aigcs/widget",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "main": "./dist/aigcs.js",
   "files": ["dist"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openaigcs/aigcs"
+  },
   "publishConfig": {
     "access": "public"
   },

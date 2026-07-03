@@ -5,6 +5,7 @@ dist/
 .docs
 .env
 .env.local
+.idea
 *.db
 *.db-journal
 *.db-shm

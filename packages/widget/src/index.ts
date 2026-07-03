@@ -1183,6 +1183,9 @@ const STYLES = `
 
 .aigcs-comment-reply {
   position: relative;
+}
+
+.aigcs-comment-reply > .aigcs-comment-floor {
   margin-left: 0.5rem;
 }
 

@@ -33,6 +33,7 @@ function flatToForm(flat: Record<string, any>) {
     allowedOrigins: flat.allowed_origins ? (() => { try { return JSON.parse(flat.allowed_origins).join('\n') } catch { return flat.allowed_origins } })() : '',
     siteTitle: flat.site_title || '',
     siteFavicon: flat.site_favicon || '',
+    emailLocale: flat.email_locale || 'en',
   }
 }
 
@@ -69,6 +70,7 @@ function formToFlat(form: ReturnType<typeof flatToForm>) {
     allowed_origins: form.allowedOrigins ? JSON.stringify(form.allowedOrigins.split('\n').map((s: string) => s.trim()).filter(Boolean)) : null,
     site_title: form.siteTitle || null,
     site_favicon: form.siteFavicon || null,
+    email_locale: form.emailLocale || 'en',
   }
 }
 
@@ -328,19 +330,29 @@ function SystemConfigSection({ onSave, mutation }: { onSave: (data: any) => void
           </div>
         </div>
         <hr className="border-gray-200 dark:border-gray-700 my-3" />
-        <div className="space-y-2">
-          <label className="block text-sm font-medium dark:text-gray-300">{t('settings.smtpTestEmail')}</label>
-          <input
-            value={smtpTestEmail}
-            onChange={e => setSmtpTestEmail(e.target.value)}
-            placeholder={userInfo?.email || 'test@example.com'}
-            className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {!smtpTestEmail && userInfo?.email && (
-            <p className="text-xs text-gray-400">{t('settings.smtpTestEmailHint')} <span className="text-gray-500">{userInfo.email}</span></p>
-          )}
+        <div className="flex gap-4 items-start">
+          <div className="flex-1 space-y-2">
+            <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('settings.smtpTestEmail')}</label>
+            <input
+              value={smtpTestEmail}
+              onChange={e => setSmtpTestEmail(e.target.value)}
+              placeholder={userInfo?.email || 'test@example.com'}
+              className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {!smtpTestEmail && userInfo?.email && (
+              <p className="text-xs text-gray-400">{t('settings.smtpTestEmailHint')} <span className="text-gray-500">{userInfo.email}</span></p>
+            )}
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('settings.emailLocale')}</label>
+            <Select value={form.emailLocale} onChange={(v: string) => setForm({ ...form, emailLocale: v })}>
+              <option value="en">English</option>
+              <option value="zh">中文</option>
+            </Select>
+            <p className="text-xs text-gray-400 mt-1">{t('settings.emailLocaleHint')}</p>
+          </div>
         </div>
-        <div className="flex items-center gap-3 mt-3">
+        <div className="flex items-center gap-3 mt-4">
           <PrimaryButton onClick={testSmtp} disabled={smtpTestMutation.isPending}>
             {smtpTestMutation.isPending ? t('settings.testing') : t('settings.testSmtp')}
           </PrimaryButton>

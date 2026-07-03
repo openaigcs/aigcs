@@ -276,7 +276,7 @@ function SettingsTab({ siteId, site, siteDomain, contentSelector, setContentSele
       {emailNotifyComments && (
         <div>
           <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.commentGeneratedTemplate')}</label>
-          <Input multiline value={commentGeneratedTemplate} onChange={setCommentGeneratedTemplate} placeholder={'<p>Page: {{path}}</p>\n<p>Site: {{domain}}</p>'} className="min-h-[120px]" />
+          <Input multiline value={commentGeneratedTemplate} onChange={setCommentGeneratedTemplate} placeholder={t('sites.commentGeneratedDefaultTemplate')} className="min-h-[120px]" />
           <p className="text-xs text-gray-400 mt-0.5">{t('sites.commentGeneratedTemplateHint')}</p>
         </div>
       )}
@@ -401,7 +401,7 @@ function CommentSettingsTab({ siteId }: { siteId: string }) {
                 ) : k === 'adminPin' || k === 'smtp_pass' ? (
                   <Input value={String(val || '')} onChange={(v: string) => setSettings(prev => ({ ...prev, [k]: v }))} placeholder={String(defaults[k] ?? '')} type="password" />
                 ) : k === 'replyNotificationTemplate' ? (
-                  <textarea className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono min-h-[100px]" value={String(val || '')} onChange={e => setSettings(prev => ({ ...prev, [k]: e.target.value }))} placeholder={'<p>{{authorName}} replied:</p>\n<blockquote>{{content}}</blockquote>'} />
+                  <textarea className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono min-h-[100px]" value={String(val || '')} onChange={e => setSettings(prev => ({ ...prev, [k]: e.target.value }))} placeholder={t('pluginsPage.replyNotificationDefaultTemplate')} />
                 ) : k === 'emailDomains' ? (
                   <div>
                     <Input value={String(val || '')} onChange={(v: string) => setSettings(prev => ({ ...prev, [k]: v }))} placeholder={settings.emailDomainMode === 'blacklist' ? 'mailinator.com,10minutemail.com' : 'gmail.com,outlook.com,qq.com'} />
@@ -1583,23 +1583,40 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
         {/* Delete confirm dialog */}
         {confirmDeletePath && (
           <div className="mb-4 p-3 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-lg flex items-center gap-3">
-            <span className="text-sm text-red-700 dark:text-red-300">
-              {confirmDeletePath === '__batch__'
-                ? t('content.confirmDeleteSelected', { count: selectedPaths.length })
-                : confirmDeletePath === '__all__'
-                ? t('content.confirmDeleteAll', { count: totalCache })
-                : t('content.confirmDeleteSingle')}
-            </span>
-            <DangerButton onClick={() => {
-              if (confirmDeletePath === '__all__') {
-                deleteAllMutation.mutate()
-              } else {
-                handleDelete(confirmDeletePath === '__batch__' ? selectedPaths : [confirmDeletePath])
-              }
-            }} disabled={deleteMutation.isPending || deleteAllMutation.isPending}>
-              {deleteMutation.isPending || deleteAllMutation.isPending ? t('common.loading') : t('common.delete')}
-            </DangerButton>
-            <SecondaryButton onClick={() => setConfirmDeletePath(null)}>{t('common.cancel')}</SecondaryButton>
+            {undoEntries.length > 0 && confirmDeletePath === '__done__' ? (
+              <>
+                <span className="text-sm text-orange-700 dark:text-orange-300">
+                  {t('content.deletedEntries', { count: undoEntries.length })}
+                </span>
+                <PrimaryButton onClick={() => restoreMutation.mutate(undoEntries)} disabled={restoreMutation.isPending}>
+                  {restoreMutation.isPending ? t('common.loading') : t('content.undo')}
+                </PrimaryButton>
+                <SecondaryButton onClick={() => { setUndoEntries([]); setConfirmDeletePath(null) }}>
+                  {t('common.cancel')}
+                </SecondaryButton>
+              </>
+            ) : (
+              <>
+                <span className="text-sm text-red-700 dark:text-red-300">
+                  {confirmDeletePath === '__batch__'
+                    ? t('content.confirmDeleteSelected', { count: selectedPaths.length })
+                    : confirmDeletePath === '__all__'
+                    ? t('content.confirmDeleteAll', { count: totalCache })
+                    : t('content.confirmDeleteSingle')}
+                </span>
+                <DangerButton onClick={() => {
+                  if (confirmDeletePath === '__all__') {
+                    deleteAllMutation.mutate()
+                  } else {
+                    handleDelete(confirmDeletePath === '__batch__' ? selectedPaths : [confirmDeletePath])
+                  }
+                  setConfirmDeletePath('__done__')
+                }} disabled={deleteMutation.isPending || deleteAllMutation.isPending}>
+                  {deleteMutation.isPending || deleteAllMutation.isPending ? t('common.loading') : t('common.delete')}
+                </DangerButton>
+                <SecondaryButton onClick={() => setConfirmDeletePath(null)}>{t('common.cancel')}</SecondaryButton>
+              </>
+            )}
           </div>
         )}
 
@@ -1905,21 +1922,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
           </div>
         )}
 
-        {/* Undo bar */}
-        {undoEntries.length > 0 && (
-          <div className="mt-4 p-3 border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center gap-3">
-            <span className="text-sm text-orange-700 dark:text-orange-300">
-              {t('content.deletedEntries', { count: undoEntries.length })}
-            </span>
-            <PrimaryButton onClick={() => restoreMutation.mutate(undoEntries)} disabled={restoreMutation.isPending}>
-              {restoreMutation.isPending ? t('common.loading') : t('content.undo')}
-            </PrimaryButton>
-            <SecondaryButton onClick={() => setUndoEntries([])}>
-              {t('common.cancel')}
-            </SecondaryButton>
-          </div>
-        )}
-    </div>
+        </div>
   )
 }
 

@@ -637,6 +637,7 @@
     "statusIdHint": "支持输入 Status ID 或完整的联邦帖子 URL。",
     "fediAuthor": "站长 Fedi ID",
     "autoFetch": "自动获取新回复",
+    "autoFetchHint": "关闭时每次 widget 请求实时从联邦实例获取；开启时缓存评论，按间隔刷新。大流量网站建议开启，小流量网站建议关闭。",
     "cacheTtl": "自动获取间隔",
     "minutes": "分钟",
     "saveBinding": "保存绑定",

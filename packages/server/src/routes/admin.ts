@@ -96,6 +96,20 @@ router.post('/sites', zValidator('json', z.object({
   const id = nanoid()
   db.insert(sites).values({ id, userId: user.id, domain, name: name || domain }).run()
 
+  // Auto-add domain to CORS allowed_origins
+  try {
+    const configRow = db.select().from(systemConfig).where(eq(systemConfig.id, 'global')).get() as any
+    if (configRow) {
+      const origins: string[] = configRow.allowedOrigins || []
+      const httpOrigin = `http://${domain}`
+      const httpsOrigin = `https://${domain}`
+      let changed = false
+      if (!origins.includes(httpOrigin)) { origins.push(httpOrigin); changed = true }
+      if (!origins.includes(httpsOrigin)) { origins.push(httpsOrigin); changed = true }
+      if (changed) db.update(systemConfig).set({ allowedOrigins: origins }).where(eq(systemConfig.id, 'global')).run()
+    }
+  } catch {}
+
   insertAuditLog(db, {
     id: nanoid(),
     userId: user.id,
@@ -170,6 +184,22 @@ router.put('/sites/:siteId', zValidator('json', z.object({
     updateData.settings = { ...currentSettings, ...body.settings }
   }
   db.update(sites).set(updateData as any).where(eq(sites.id, siteId)).run()
+
+  // Auto-add domain to CORS allowed_origins if domain changed
+  if (body.domain && body.domain !== (site as any).domain) {
+    try {
+      const configRow = db.select().from(systemConfig).where(eq(systemConfig.id, 'global')).get() as any
+      if (configRow) {
+        const origins: string[] = configRow.allowedOrigins || []
+        const httpOrigin = `http://${body.domain}`
+        const httpsOrigin = `https://${body.domain}`
+        let changed = false
+        if (!origins.includes(httpOrigin)) { origins.push(httpOrigin); changed = true }
+        if (!origins.includes(httpsOrigin)) { origins.push(httpsOrigin); changed = true }
+        if (changed) db.update(systemConfig).set({ allowedOrigins: origins }).where(eq(systemConfig.id, 'global')).run()
+      }
+    } catch {}
+  }
 
   insertAuditLog(db, {
     id: nanoid(), userId: user.id, action: 'site.update',

@@ -1183,6 +1183,7 @@ const STYLES = `
 
 .aigcs-comment-reply {
   position: relative;
+  margin-left: 0.5rem;
 }
 
 .aigcs-comment-reply + .aigcs-comment-reply {
@@ -1862,7 +1863,6 @@ class AIGCSWidget extends HTMLElement {
 
   private renderCommentTree(node: { data: any; children: any[] }, depth: number, rendered: string[], group?: 'native' | 'fedi') {
     const baseIndent = 2.5
-    const indent = depth > 1 ? (depth - 1) * baseIndent : 0
     const type = group === 'fedi' ? 'fedi' : 'visitor'
 
     rendered.push(this.renderCommentCard(type, node.data))
@@ -1872,16 +1872,21 @@ class AIGCSWidget extends HTMLElement {
     }
 
     if (node.children.length > 0) {
-      const threadLeft = baseIndent + 0.5
-      const adjustedLeft = indent > 0 ? threadLeft + indent : threadLeft
-      rendered.push(`<div class="aigcs-comment-replies" style="padding-left:${indent + baseIndent}rem">`)
-      rendered.push(`<div class="aigcs-thread-line" style="left:${adjustedLeft}rem"></div>`)
+      // Only create the wrapper once for the first level of replies
+      // All nested replies at any depth render directly inside this same wrapper
+      if (depth === 1) {
+        const threadLeft = baseIndent + 0.5
+        rendered.push(`<div class="aigcs-comment-replies" style="padding-left:${baseIndent}rem">`)
+        rendered.push(`<div class="aigcs-thread-line" style="left:${threadLeft}rem"></div>`)
+      }
       for (const child of node.children) {
         rendered.push(`<div class="aigcs-comment-reply">`)
         this.renderCommentTree(child, depth + 1, rendered, group)
         rendered.push(`</div>`)
       }
-      rendered.push(`</div>`)
+      if (depth === 1) {
+        rendered.push(`</div>`)
+      }
     }
   }
 

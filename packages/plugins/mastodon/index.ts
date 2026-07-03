@@ -111,7 +111,7 @@ const plugin: Plugin = {
             statusId: z.string().min(1),
             accessToken: z.string().default(''),
             fediAuthor: z.string().default(''),
-            autoFetch: z.boolean().default(true),
+            autoFetch: z.boolean().default(false),
             cacheTtl: z.number().int().default(30),
           }),
         ),
@@ -203,13 +203,14 @@ const plugin: Plugin = {
               z.object({
                 slug: z.string().min(1),
                 instanceType: z.string().default('mastodon'),
-                instanceUrl: z.string().min(1),
-                statusId: z.string().min(1),
+instanceUrl: z.string().optional(),
+                statusId: z.string().optional(),
+                statusUrl: z.string().optional(),
                 accessToken: z.string().default(''),
                 fediAuthor: z.string().default(''),
-                autoFetch: z.boolean().default(true),
+                autoFetch: z.boolean().default(false),
                 cacheTtl: z.number().int().default(30),
-              }),
+              }).refine(d => d.statusId || d.statusUrl, { message: 'statusId or statusUrl required' }),
             ).min(1).max(10000),
           }),
         ),
@@ -222,30 +223,48 @@ const plugin: Plugin = {
           const failed: { item: any; error: string }[] = []
           let successCount = 0
 
+          // Get site's mastodon config for defaults
+          const siteRow = db.select().from(sites).where(eq(sites.id, siteId)).get() as any
+          const fediConfig = siteRow?.settings?.fediConfig || {}
+          const defaultInstanceUrl = fediConfig.instanceUrl || ''
+
           for (const item of items) {
+            const rawStatusId = item.statusId || item.statusUrl || ''
+            const instanceUrl = (item.instanceUrl || defaultInstanceUrl).replace(/\/+$/, '')
+            const slug = item.slug.replace(/^\/+|\/+$/g, '')
+            if (!rawStatusId) {
+              failed.push({ item, error: 'statusId or statusUrl is required' })
+              continue
+            }
+            if (!instanceUrl) {
+              failed.push({ item, error: 'instanceUrl is required' })
+              continue
+            }
+            const adapter = getAdapter(item.instanceType)
+            const statusId = adapter.resolveStatusId(instanceUrl, rawStatusId)
             const id = nanoid()
             try {
               const existing = db.select().from(mastodonBindings)
-                .where(and(eq(mastodonBindings.siteId, siteId), eq(mastodonBindings.slug, item.slug)))
+                .where(and(eq(mastodonBindings.siteId, siteId), eq(mastodonBindings.slug, slug)))
                 .get()
               if (existing) {
-                failed.push({ item, error: `slug "${item.slug}" already bound` })
+                failed.push({ item, error: `slug "${slug}" already bound` })
                 continue
               }
               const dupStatus = db.select().from(mastodonBindings)
-                .where(and(eq(mastodonBindings.siteId, siteId), eq(mastodonBindings.statusId, item.statusId)))
+                .where(and(eq(mastodonBindings.siteId, siteId), eq(mastodonBindings.statusId, statusId)))
                 .get()
               if (dupStatus) {
-                failed.push({ item, error: `statusId "${item.statusId}" already bound to another page` })
+                failed.push({ item, error: `statusId "${statusId}" already bound to another page` })
                 continue
               }
               db.insert(mastodonBindings).values({
                 id,
                 siteId,
-                slug: item.slug,
+                slug,
                 instanceType: item.instanceType,
-                instanceUrl: item.instanceUrl.replace(/\/+$/, ''),
-                statusId: item.statusId,
+                instanceUrl,
+                statusId,
                 accessToken: item.accessToken,
                 fediAuthor: item.fediAuthor,
                 autoFetch: item.autoFetch ? 1 : 0,
@@ -253,6 +272,18 @@ const plugin: Plugin = {
                 createdAt: now,
                 updatedAt: now,
               }).run()
+              // Create cache entry if not exists so it appears in the bindings table
+              const existingCache = db.select().from(pageCache).where(and(eq(pageCache.siteId, siteId), eq(pageCache.path, `/` + slug + `/`))).get()
+              if (!existingCache) {
+                db.insert(pageCache).values({
+                  id: nanoid(),
+                  siteId,
+                  path: `/` + slug + `/`,
+                  title: slug,
+                  status: 'ready',
+                  etag: '',
+                }).run()
+              }
               successCount++
             } catch (err: any) {
               failed.push({ item, error: err.message || 'Unknown error' })
@@ -959,32 +990,35 @@ const plugin: Plugin = {
 
         if (!db?.prepare) return ctx
 
+        const normPath = ctx.path.replace(/^\/+|\/+$/g, '')
         const bindings = db
           .prepare('SELECT * FROM mastodon_bindings WHERE site_id = ? AND slug = ?')
-          .all(ctx.siteId, ctx.path) as any[]
+          .all(ctx.siteId, normPath) as any[]
 
         if (!bindings || bindings.length === 0) return ctx
 
         for (const binding of bindings) {
           const adp = getAdapter(binding.instance_type, binding.software || '')
 
-          const cacheRows = db
-            .prepare('SELECT * FROM mastodon_cached_comments WHERE binding_id = ?')
-            .all(binding.id) as any[]
+          let shouldFetch = true
 
-          let shouldRefresh = binding.auto_fetch === 1
-
-          if (cacheRows.length > 0) {
-            const newestFetch = cacheRows.reduce((latest: string, r: any) => {
-              return r.fetched_at > latest ? r.fetched_at : latest
-            }, '')
-            const cacheAge = (Date.now() - new Date(newestFetch).getTime()) / 60000
-            if (cacheAge < binding.cache_ttl) {
-              shouldRefresh = false
+          // autoFetch ON: use cache if fresh, skip live fetch
+          if (binding.auto_fetch === 1) {
+            const cacheRows = db
+              .prepare('SELECT * FROM mastodon_cached_comments WHERE binding_id = ?')
+              .all(binding.id) as any[]
+            if (cacheRows.length > 0) {
+              const newestFetch = cacheRows.reduce((latest: string, r: any) => {
+                return r.fetched_at > latest ? r.fetched_at : latest
+              }, '')
+              const cacheAge = (Date.now() - new Date(newestFetch).getTime()) / 60000
+              if (cacheAge < binding.cache_ttl) {
+                shouldFetch = false
+              }
             }
           }
 
-          if (shouldRefresh) {
+          if (shouldFetch) {
             try {
               let token = binding.access_token
               if (!token) {
@@ -994,36 +1028,37 @@ const plugin: Plugin = {
                   token = s.fediConfig?.accessToken || ''
                 }
               }
-              if (!token) continue
-              const headers: Record<string, string> = { Accept: 'application/json' }
-              Object.assign(headers, adp.authHeader(token))
-              const contextUrl = adp.contextUrl(binding.instance_url, binding.status_id)
-              const raw = await fetch(contextUrl, { headers, signal: AbortSignal.timeout(10000) })
-              if (raw.ok) {
-                const json = await raw.json()
-                const { descendants } = adp.parseContext(json)
-                const now = new Date().toISOString()
+              if (token) {
+                const headers: Record<string, string> = { Accept: 'application/json' }
+                Object.assign(headers, adp.authHeader(token))
+                const contextUrl = adp.contextUrl(binding.instance_url, binding.status_id)
+                const raw = await fetch(contextUrl, { headers, signal: AbortSignal.timeout(10000) })
+                if (raw.ok) {
+                  const json = await raw.json()
+                  const { descendants } = adp.parseContext(json)
+                  const now = new Date().toISOString()
 
-                db.prepare('DELETE FROM mastodon_cached_comments WHERE binding_id = ?').run(binding.id)
+                  db.prepare('DELETE FROM mastodon_cached_comments WHERE binding_id = ?').run(binding.id)
 
-                const insertStmt = db.prepare(
-                  'INSERT INTO mastodon_cached_comments (id, binding_id, mastodon_comment_id, author_name, author_avatar, author_fedi_id, content, created_at, fetched_at, favourites_count, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                )
-                for (const d of descendants) {
-                  const account = adp.parseAccount(d)
-                  insertStmt.run(
-                    `mastodon-cache-${nanoid()}`,
-                    binding.id,
-                    d.id,
-                    account.displayName,
-                    account.avatar,
-                    account.acct,
-                    d.content || '',
-                    d.created_at || now,
-                    now,
-                    adp.parseFavourites(d),
-                    d.in_reply_to_id || '',
+                  const insertStmt = db.prepare(
+                    'INSERT INTO mastodon_cached_comments (id, binding_id, mastodon_comment_id, author_name, author_avatar, author_fedi_id, content, created_at, fetched_at, favourites_count, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                   )
+                  for (const d of descendants) {
+                    const account = adp.parseAccount(d)
+                    insertStmt.run(
+                      `mastodon-cache-${nanoid()}`,
+                      binding.id,
+                      d.id,
+                      account.displayName,
+                      account.avatar,
+                      account.acct,
+                      d.content || '',
+                      d.created_at || now,
+                      now,
+                      adp.parseFavourites(d),
+                      d.in_reply_to_id || '',
+                    )
+                  }
                 }
               }
             } catch (err) {

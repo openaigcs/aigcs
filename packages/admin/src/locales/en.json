@@ -629,6 +629,7 @@
     "statusIdHint": "Enter a Status ID or full Fediverse post URL",
     "fediAuthor": "Author Fedi ID",
     "autoFetch": "Auto-fetch replies",
+    "autoFetchHint": "When off, fetches live from fediverse on every widget request. When on, caches comments and refreshes at the set interval. Recommended ON for high-traffic sites, OFF for low-traffic sites.",
     "cacheTtl": "Cache TTL",
     "minutes": "minutes",
     "saveBinding": "Save Binding",

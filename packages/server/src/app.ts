@@ -6,7 +6,7 @@ import { secureHeaders } from 'hono/secure-headers'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { HTTPException } from 'hono/http-exception'
 import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, rmSync } from 'node:fs'
-import { join, dirname, extname } from 'node:path'
+import { join, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import { authMiddleware } from './middleware/auth.js'
@@ -154,20 +154,6 @@ export async function createApp() {
 
   app.get('/api/health', (c) => {
     return c.json({ status: 200 })
-  })
-
-  // Serve widget.js with explicit CORS and Content-Type headers
-  const __dirname = dirname(fileURLToPath(import.meta.url))
-  const widgetPath = join(__dirname, '..', '..', 'widget', 'dist', 'aigcs.js')
-  app.get('/widget.js', (c) => {
-    if (!existsSync(widgetPath)) return c.text('Widget not built', 404)
-    const widgetContent = readFileSync(widgetPath, 'utf-8')
-    return c.newResponse(widgetContent, 200, {
-      'Content-Type': 'application/javascript',
-      'Access-Control-Allow-Origin': '*',
-      'Cross-Origin-Resource-Policy': 'cross-origin',
-      'Cache-Control': 'no-cache',
-    })
   })
 
   // Serve admin static files (production only; Vite handles dev)

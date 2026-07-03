@@ -149,7 +149,7 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
   const [mravatarNoCache, setMravatarNoCache] = useState(true)
   const [fedAdminAcct, setFedAdminAcct] = useState('')
   const [customInstanceType, setCustomInstanceType] = useState('')
-  const [autoFetch, setAutoFetch] = useState(true)
+  const [autoFetch, setAutoFetch] = useState(false)
   const [cacheTtl, setCacheTtl] = useState(30)
   const [cacheTtlUnit, setCacheTtlUnit] = useState<'m' | 'h' | 'd' | 's'>('m')
   const [testResult, setTestResult] = useState<string>('')
@@ -182,7 +182,7 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
       return result
     },
     onSuccess: (result) => {
-      bindingsQuery.refetch()
+      queryClient.invalidateQueries({ queryKey: ['mastodon-bindings', siteId] })
       setBatchImportFailed(result.failedDetails || [])
       if (result.failed > 0) {
         setBatchImportStatus(t('fedi.batchImportPartially', { success: result.success, total: result.total, failed: result.failed }))
@@ -469,6 +469,7 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
             </Select>
           </div>
         </div>
+        <p className="text-xs text-gray-400 mt-1">{t('fedi.autoFetchHint')}</p>
         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
           <label className="block text-sm font-medium mb-2 dark:text-gray-300">{t('fedi.avatarProxy')}</label>
           <Select value={avatarMode} onChange={(v: string) => {
@@ -551,7 +552,8 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
         </div>
         <p className="text-xs text-gray-500 mb-3" dangerouslySetInnerHTML={{ __html: t('fedi.bindingsHint') }} />
         {(() => {
-          const bindingMap = new Map((bindingsQuery.data || []).map((b: any) => [b.slug, b]))
+          const norm = (s: string) => s.replace(/^\/+|\/+$/g, '')
+          const bindingMap = new Map((bindingsQuery.data || []).map((b: any) => [norm(b.slug), b]))
           const hasMore = cacheData && cacheItems.length < cacheTotal
 
           return (
@@ -566,15 +568,15 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
               <table className="w-full text-left text-sm table-fixed">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500">
-                    <th className="pb-2 pr-3 w-[25%]">{t('sites.rssTitle')}</th>
-                    <th className="pb-2 pr-3 w-[25%]">{t('sites.rssPath')}</th>
-                    <th className="pb-2 pr-3 w-[38%]">{t('fedi.bindingInfo')}</th>
-                    <th className="pb-2 w-[12%]">{t('sites.actions')}</th>
+                    <th className="pb-2 pr-3 w-[20%]">{t('sites.rssTitle')}</th>
+                    <th className="pb-2 pr-3 w-[20%]">{t('sites.rssPath')}</th>
+                    <th className="pb-2 pr-3 w-[42%]">{t('fedi.bindingInfo')}</th>
+                    <th className="pb-2 w-[18%]">{t('sites.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {cacheItems.map((entry: any) => {
-                    const binding = bindingMap.get(entry.path)
+                    const binding = bindingMap.get(norm(entry.path))
                     const bindInputId = `bind-status-${entry.path}`
                     return (
                       <Fragment key={entry.path}>
@@ -587,9 +589,9 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
                           </td>
                           <td className="py-2 pr-4">
                             {binding ? (
-                              <div>
-                                <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">{t('fedi.bindingActive')}</span>
-                                <div className="text-xs text-gray-500 mt-1 font-mono">{binding.statusId || binding.status_id}</div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 whitespace-nowrap">{t('fedi.bindingActive')}</span>
+                                <span className="text-xs text-gray-500 font-mono truncate">{(binding.statusId || binding.status_id || '').split('/').pop()}</span>
                               </div>
                             ) : (
                               <Input value={bindInputs[entry.path] || ''} onChange={(v: string) => setBindInputs(prev => ({ ...prev, [entry.path]: v }))} placeholder="https://实例/@作者/帖子ID" className="w-full" />
@@ -619,7 +621,7 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
                                     await createBinding.mutateAsync({
                                       slug: entry.path, instanceType: cfg.instanceType, instanceUrl: cfg.instanceUrl,
                                       statusId: url, accessToken: '', fediAuthor: cfg.fediAuthor,
-                                      autoFetch: true, cacheTtl: 30,
+                                      autoFetch: (cfg as any).autoFetch ?? false, cacheTtl: 30,
                                     })
                                     setBindInputs(prev => { const next = { ...prev }; delete next[entry.path]; return next })
                                   }} disabled={createBinding.isPending || !bindInputs[entry.path]}>{t('fedi.bindAction')}</SecondaryButton>

@@ -11,7 +11,6 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.json drizzle.config.
 COPY packages/core/package.json packages/core/
 COPY packages/server/package.json packages/server/
 COPY packages/admin/package.json packages/admin/
-COPY packages/widget/package.json packages/widget/
 COPY packages/plugins/native/package.json packages/plugins/native/
 COPY packages/plugins/mastodon/package.json packages/plugins/mastodon/
 
@@ -20,12 +19,10 @@ RUN pnpm install --frozen-lockfile
 COPY packages/core packages/core
 COPY packages/server packages/server
 COPY packages/admin packages/admin
-COPY packages/widget packages/widget
 COPY packages/plugins packages/plugins
 
 RUN pnpm --filter @aigcs/core exec tsc && \
     pnpm --filter @aigcs/server exec tsc && \
-    cd packages/widget && pnpm exec vite build && cd /app && \
     cd packages/admin && pnpm exec tsc && pnpm exec vite build && cd /app
 
 RUN npm install -g esbuild && esbuild packages/plugins/native/index.ts --platform=node --format=esm --outfile=packages/plugins/native/index.js && \
@@ -37,7 +34,7 @@ RUN npm install -g esbuild && esbuild packages/plugins/native/index.ts --platfor
 # Prepare clean output: dist + package.json per package, plus plugins
 RUN mkdir -p /out/packages && \
     cp package.json pnpm-lock.yaml pnpm-workspace.yaml /out/ && \
-    for pkg in core server admin widget; do \
+    for pkg in core server admin; do \
       mkdir -p /out/packages/$pkg/dist && \
       cp -r packages/$pkg/dist/* /out/packages/$pkg/dist/ && \
       cp packages/$pkg/package.json /out/packages/$pkg/; \

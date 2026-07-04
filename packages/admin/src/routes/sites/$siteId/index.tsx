@@ -8,6 +8,13 @@ import { PrimaryButton, SecondaryButton, DangerButton, Input, Select, Card, Togg
 import { ProviderIcon } from '../../../components/provider-icon'
 import { WEBHOOK_EVENTS, webhookEventLabel } from '../../../lib/webhook-events'
 import { FediverseTab } from './fedi-tab'
+import { marked } from 'marked'
+
+marked.setOptions({ gfm: true, breaks: false })
+
+function renderMarkdown(text: string): string {
+  return marked.parse(text) as string
+}
 
 function sanitizeFediHtml(html: string): string {
   return html
@@ -1276,7 +1283,7 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
                 <td className="py-2 pr-4">{
                   c.source === 'fedi'
                     ? <p className="text-xs text-gray-700 dark:text-gray-300 break-words line-clamp-2" dangerouslySetInnerHTML={{ __html: sanitizeFediHtml(c.content) }} />
-                    : <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words line-clamp-2">{c.content}</p>
+                    : <div className="text-xs text-gray-700 dark:text-gray-300 break-words line-clamp-2 prose prose-xs max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(c.content) }} />
                 }</td>
                 <td className="py-1.5 whitespace-nowrap">
                   {c.hidden ? (
@@ -2056,7 +2063,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                                         {c.authorUrl && <a href={c.authorUrl} target="_blank" rel="noopener" className="text-blue-500 hover:underline">{c.authorUrl}</a>}
                                       </div>
                                     )}
-                                    <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">{c.content}</p>
+                                    <div className="text-xs text-gray-700 dark:text-gray-300 break-words prose prose-xs max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(c.content) }} />
                                   </div>
                                   {c.providerName === 'visitor' && (
                                     <button

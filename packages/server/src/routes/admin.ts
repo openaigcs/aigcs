@@ -1495,7 +1495,8 @@ router.get('/sites/:siteId/comments/search', async (c) => {
       return result
     }
     const reqUrl = new URL(c.req.url)
-    return `${reqUrl.protocol}//${reqUrl.host}/api/avatar-proxy?url=${encodeURIComponent(url)}`
+    const proto = c.req.header('x-forwarded-proto') ? `${c.req.header('x-forwarded-proto')}:` : reqUrl.protocol
+    return `${proto}//${reqUrl.host}/api/avatar-proxy?url=${encodeURIComponent(url)}`
   }
 
   // Fedi comments (via mastodon bindings)

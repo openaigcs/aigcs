@@ -1,9 +1,12 @@
 {
   "name": "@aigcs/widget",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "type": "module",
   "main": "./dist/aigcs.js",
-  "files": ["dist"],
+  "files": [
+    "dist",
+    "scripts"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/openaigcs/aigcs"
@@ -13,7 +16,7 @@
   },
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.config.lite.ts && node scripts/extract-css.js",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
@@ -22,5 +25,8 @@
   "devDependencies": {
     "typescript": "^6.0.3",
     "vite": "^8.0.16"
+  },
+  "dependencies": {
+    "marked": "^18.0.5"
   }
 }

@@ -5,6 +5,7 @@ AIGCS - AI Generated Comments System.
 > [!CAUTION]
 > 本项目完全由 AI 生成，我对代码一无所知，对 AI 也不甚了解。  
 > 你可以随意使用，但风险自担。
+> [English](README.md)
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D24-brightgreen)

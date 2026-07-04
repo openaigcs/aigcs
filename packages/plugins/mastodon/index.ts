@@ -1116,7 +1116,7 @@ instanceUrl: z.string().optional(),
               const instance = binding.instance_url.replace(/\/+$/, '')
               const itype = (binding.software || binding.instance_type || '').toLowerCase()
               const acct = binding.fedi_author || ''
-              const username = acct.includes('@') ? acct.split('@')[0] : ''
+              const username = acct.includes('@') ? acct.split('@')[0] : acct
               if (['gotosocial', 'friendica'].includes(itype)) {
                 return username ? `${instance}/@${username}/statuses/${sid}` : `${instance}/api/v1/statuses/${sid}`
               }

@@ -251,7 +251,8 @@ router.get('/:domain/comments', async (c) => {
     if (avatarMode === 'off') return url
     if (url.startsWith('/api/avatar-proxy')) return url
     const reqUrl = new URL(c.req.url)
-    return `${reqUrl.protocol}//${reqUrl.host}/api/avatar-proxy?url=${encodeURIComponent(url)}`
+    const proto = c.req.header('x-forwarded-proto') ? `${c.req.header('x-forwarded-proto')}:` : reqUrl.protocol
+    return `${proto}//${reqUrl.host}/api/avatar-proxy?url=${encodeURIComponent(url)}`
   }
 
   const enrichedVisitorComments = (fetchCtx.visitorComments || []).map((vc: any) => {

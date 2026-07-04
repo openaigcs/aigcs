@@ -5,11 +5,12 @@ export default defineConfig({
   server: { port: 5175 },
   build: {
     outDir: 'dist',
+    emptyOutDir: false,
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
+      entry: resolve(__dirname, 'src/lite.ts'),
       formats: ['iife'],
       name: 'AIGCS',
-      fileName: () => 'aigcs.js',
+      fileName: () => 'aigcs-lite.js',
     },
     rollupOptions: {
       output: {

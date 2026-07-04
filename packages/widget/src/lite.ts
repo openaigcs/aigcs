@@ -1,7 +1,4 @@
 import { AIGCSWidget } from './widget.js'
-import { STYLES } from './styles.js'
-
-AIGCSWidget.css = STYLES
 
 customElements.define('aigcs-widget', AIGCSWidget)
 

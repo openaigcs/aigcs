@@ -564,6 +564,14 @@
     "nativeWarning6": "No search within comments",
     "nativeWarning7": "Relies on local database; no cloud sync",
     "activateAnyway": "Activate Anyway",
+    "commentImportExport": "Comment Import & Export",
+    "selectFile": "Select File",
+    "importComments": "Import Comments",
+    "exportComments": "Export Comments",
+    "commentTemplate": "Download Template",
+    "importResult": "Imported {{imported}} comments, {{skipped}} skipped (duplicates), {{total}} total.",
+    "templatePreview": "Comment Style Preview",
+    "visitorBadge": "Visitor",
     "setting_smtp_host": "SMTP Host",
     "setting_smtp_port": "SMTP Port",
     "setting_smtp_user": "SMTP User",
@@ -722,6 +730,8 @@
     "seconds": "seconds",
     "minutes": "minutes",
     "hours": "hours",
-    "days": "days"
+    "days": "days",
+    "before": "ago",
+    "after": "after"
   }
 }

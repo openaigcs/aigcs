@@ -16,6 +16,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "edgeone:build": "pnpm --filter @aigcs/edgeone run build",
+    "convert:twikoo": "node tools/twikoo-to-aigcs.mjs",
     "format": "prettier --write \"packages/*/src/**/*.{ts,tsx,json}\""
   },
   "devDependencies": {

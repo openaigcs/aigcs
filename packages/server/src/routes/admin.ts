@@ -1564,6 +1564,125 @@ router.delete('/sites/:siteId/comments/:commentId', async (c) => {
   return c.json({ code: 0 })
 })
 
+// ── Export visitor comments (native plugin) for a site ──
+
+router.get('/sites/:siteId/comments/export', async (c) => {
+  const siteId = c.req.param('siteId')
+  requireSiteOwnership(c, siteId)
+  const db = getDb()
+  const raw = getRawDb() as import('better-sqlite3').Database
+
+  const site = db.select().from(sites).where(eq(sites.id, siteId)).get() as any
+  if (!site) throw new HTTPException(404, { message: 'Site not found' })
+
+  const visitorRows = raw.prepare(
+    "SELECT id, path, parent_id, author_name, author_email, author_url, content, status, edited_at, created_at FROM visitor_comments WHERE site_id = ? ORDER BY created_at ASC"
+  ).all(siteId) as any[]
+
+  const exportComments = visitorRows.map((v) => ({
+    id: v.id,
+    path: v.path,
+    parentId: v.parent_id || null,
+    authorName: v.author_name,
+    authorEmail: v.author_email || '',
+    authorUrl: v.author_url || '',
+    content: v.content,
+    status: v.status || 'approved',
+    editedAt: v.edited_at || null,
+    createdAt: v.created_at,
+  }))
+
+  const payload = {
+    version: 1,
+    type: 'aigcs-native-comments',
+    exportedAt: new Date().toISOString(),
+    site: { id: site.id, name: site.name, domain: site.domain },
+    totalComments: exportComments.length,
+    comments: exportComments,
+  }
+
+  const json = JSON.stringify(payload, null, 2)
+  const filename = `aigcs-comments-${site.domain || siteId}-${Date.now()}.json`
+  c.header('Content-Type', 'application/json; charset=utf-8')
+  c.header('Content-Disposition', `attachment; filename="${filename}"`)
+  return c.body(json)
+})
+
+// ── Import native visitor comments from JSON ──
+
+router.post('/sites/:siteId/comments/import', async (c) => {
+  const siteId = c.req.param('siteId')
+  requireSiteOwnership(c, siteId)
+  const db = getDb()
+  const raw = getRawDb() as import('better-sqlite3').Database
+
+  const fd = await c.req.parseBody()
+  const file = fd['file']
+  if (!file || !(file instanceof File)) {
+    return c.json({ code: 1, message: 'File is required' }, 400)
+  }
+
+  const text = await file.text()
+  let payload: any
+  try {
+    payload = JSON.parse(text)
+  } catch {
+    return c.json({ code: 1, message: 'Invalid JSON file' }, 400)
+  }
+
+  if (!payload.comments || !Array.isArray(payload.comments)) {
+    return c.json({ code: 1, message: 'Invalid format: missing comments array' }, 400)
+  }
+
+  const existingIds = new Set(
+    (raw.prepare('SELECT id FROM visitor_comments WHERE site_id = ?').all(siteId) as any[]).map(r => r.id)
+  )
+
+  let imported = 0
+  let skipped = 0
+  const now = new Date().toISOString()
+
+  const insertVisitor = raw.prepare(
+    `INSERT OR IGNORE INTO visitor_comments (id, site_id, path, parent_id, author_name, author_email, author_url, content, status, edited_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+
+  const importComments = raw.transaction(() => {
+    for (const c of payload.comments) {
+      if (existingIds.has(c.id)) { skipped++; continue }
+      const newId = c.id || crypto.randomUUID()
+      try {
+        insertVisitor.run(
+          newId, siteId, c.path,
+          c.parentId || null,
+          c.authorName || '',
+          c.authorEmail || '',
+          c.authorUrl || '',
+          c.content || '',
+          c.status || 'approved',
+          c.editedAt || null,
+          c.createdAt || now,
+        )
+        imported++
+      } catch (err) {
+        skipped++
+      }
+    }
+  })
+
+  importComments()
+
+  const user = c.get('user')!
+  insertAuditLog(db, {
+    id: nanoid(),
+    userId: user.id,
+    action: 'comments.import',
+    details: { siteId, imported, skipped, total: payload.comments.length },
+  })
+
+  return c.json({ code: 0, data: { imported, skipped, total: payload.comments.length } })
+})
+
 // ── SMTP Test ──
 
 router.post('/system/smtp-test', requireRole('admin'), async (c) => {

@@ -572,6 +572,14 @@
     "nativeWarning6": "无评论搜索功能",
     "nativeWarning7": "依赖本地数据库，无云同步",
     "activateAnyway": "仍然激活",
+    "commentImportExport": "评论导入与导出",
+    "selectFile": "选择文件",
+    "importComments": "导入评论",
+    "exportComments": "导出评论",
+    "commentTemplate": "下载评论模板",
+    "importResult": "导入 {{imported}} 条评论，跳过 {{skipped}} 条（重复），共 {{total}} 条。",
+    "templatePreview": "评论样式预览",
+    "visitorBadge": "访客",
     "setting_smtp_host": "SMTP 主机",
     "setting_smtp_port": "SMTP 端口",
     "setting_smtp_user": "SMTP 用户名",
@@ -735,6 +743,8 @@
     "seconds": "秒",
     "minutes": "分",
     "hours": "时",
-    "days": "天"
+    "days": "天",
+    "before": "前",
+    "after": "后"
   }
 }

@@ -430,6 +430,7 @@ function CommentSettingsTab({ siteId }: { siteId: string }) {
                     <textarea className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" rows={6} value={(() => { try { return JSON.parse(String(val || '[]')).join('\n') } catch { return String(val || '') } })()} onChange={e => setSettings(prev => ({ ...prev, [k]: JSON.stringify(e.target.value.split('\n').map(s => s.trim()).filter(Boolean)) }))} placeholder={t('pluginsPage.blockedKeywordsPlaceholder')} />
                     <div className="flex gap-2 flex-wrap items-center text-xs">
                       <label className="cursor-pointer text-blue-500 hover:underline">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" className="inline-block align-middle mr-1"><path fill="currentColor" d="M11 16V7.85l-2.6 2.6L7 9l5-5l5 5l-1.4 1.45l-2.6-2.6V16zm-5 4q-.825 0-1.412-.587T4 18v-3h2v3h12v-3h2v3q0 .825-.587 1.413T18 20z"/></svg>
                         {t('common.import')}
                         <input type="file" accept=".txt,.json,.csv" className="hidden" onChange={async (e) => {
                           const file = e.target.files?.[0]
@@ -469,6 +470,7 @@ function CommentSettingsTab({ siteId }: { siteId: string }) {
             )
           })}
         </div>
+        <CommentImportExport siteId={siteId} />
         <div className="flex items-center gap-3 mt-6">
           <PrimaryButton onClick={() => saveMutation.mutate(settings)} disabled={saveMutation.isPending}>
             {saveMutation.isPending ? t('common.loading') : t('common.save')}
@@ -476,6 +478,179 @@ function CommentSettingsTab({ siteId }: { siteId: string }) {
           {saveMutation.isSuccess && <span className="text-green-600 text-sm">{t('common.saved')}</span>}
         </div>
       </Card>
+    </div>
+  )
+}
+
+function CommentImportExport({ siteId }: { siteId: string }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; total: number } | null>(null)
+  const [exporting, setExporting] = useState(false)
+
+  function handleExport() {
+    setExporting(true)
+    const token = localStorage.getItem('accessToken') || localStorage.getItem('token')
+    fetch(`/api/admin/sites/${siteId}/comments/export`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(async (res) => {
+      if (!res.ok) throw new Error('Export failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `aigcs-comments-${Date.now()}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    }).catch((err) => {
+      alert(t('common.error') + ': ' + err.message)
+    }).finally(() => {
+      setExporting(false)
+    })
+  }
+
+  async function handleImport() {
+    if (!importFile) return
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', importFile)
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token')
+      const res = await fetch(`/api/admin/sites/${siteId}/comments/import`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      })
+      const json = await res.json()
+      if (json.code === 0) {
+        setImportResult(json.data)
+        queryClient.invalidateQueries({ queryKey: ['comments-search', siteId] })
+      } else {
+        alert(json.message || t('common.error'))
+      }
+    } catch (err: any) {
+      alert(t('common.error') + ': ' + err.message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  function handleDownloadTemplate() {
+    const template = {
+      version: 1,
+      type: 'aigcs-native-comments',
+      exportedAt: '2024-01-01T00:00:00.000Z',
+      site: {
+        id: 'your-site-id',
+        name: 'My Blog',
+        domain: 'example.com',
+      },
+      totalComments: 4,
+      comments: [
+        {
+          id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+          path: '/post/hello-world',
+          parentId: null,
+          authorName: 'Alice',
+          authorEmail: 'alice@example.com',
+          authorUrl: 'https://alice.example.com',
+          content: '这篇文章写得很好！关于评论系统的分析非常到位，特别是对各主流系统的对比很有参考价值。',
+          status: 'approved',
+          editedAt: null,
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+          path: '/post/hello-world',
+          parentId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+          authorName: 'Bob',
+          authorEmail: 'bob@example.com',
+          authorUrl: '',
+          content: '同意！我之前用的是 Twikoo，迁移过来之后感觉原生评论系统更轻量，加载速度也快了不少。',
+          status: 'approved',
+          editedAt: null,
+          createdAt: '2024-01-01T01:30:00.000Z',
+        },
+        {
+          id: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
+          path: '/post/hello-world',
+          parentId: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+          authorName: 'Charlie',
+          authorEmail: 'charlie@example.com',
+          authorUrl: 'https://charlie.example.com',
+          content: 'Bob，你从 Twikoo 迁移的时候数据是怎么导出的？我还在纠结要不要换。',
+          status: 'approved',
+          editedAt: '2024-01-01T02:30:00.000Z',
+          createdAt: '2024-01-01T02:00:00.000Z',
+        },
+        {
+          id: 'd4e5f6a7-b8c9-0123-defa-234567890123',
+          path: '/post/hello-world',
+          parentId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+          authorName: 'Diana',
+          authorEmail: 'diana@example.com',
+          authorUrl: '',
+          content: '我也在考虑从 Disqus 迁移，这个导入工具看起来挺方便的，准备试试看。',
+          status: 'approved',
+          editedAt: null,
+          createdAt: '2024-01-01T03:00:00.000Z',
+        },
+      ],
+    }
+
+    const json = JSON.stringify(template, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'aigcs-comments-template.json'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+      <h4 className="text-sm font-medium mb-3 dark:text-gray-300">{t('pluginsPage.commentImportExport')}</h4>
+      <div className="flex flex-wrap gap-2 items-center">
+        <SecondaryButton onClick={() => fileInputRef.current?.click()}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" className="inline-block align-middle mr-1"><path fill="currentColor" d="M11 16V7.85l-2.6 2.6L7 9l5-5l5 5l-1.4 1.45l-2.6-2.6V16zm-5 4q-.825 0-1.412-.587T4 18v-3h2v3h12v-3h2v3q0 .825-.587 1.413T18 20z"/></svg>
+          {t('pluginsPage.selectFile')}
+        </SecondaryButton>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) {
+              setImportFile(file)
+              setImportResult(null)
+            }
+          }}
+        />
+        {importFile && (
+          <span className="text-xs text-gray-500 dark:text-gray-400">{importFile.name}</span>
+        )}
+        <PrimaryButton onClick={handleImport} disabled={!importFile || importing}>
+          {importing ? t('common.loading') : t('pluginsPage.importComments')}
+        </PrimaryButton>
+        <SecondaryButton onClick={handleExport} disabled={exporting}>
+          {exporting ? t('common.loading') : t('pluginsPage.exportComments')}
+        </SecondaryButton>
+        <SecondaryButton onClick={handleDownloadTemplate}>
+          {t('pluginsPage.commentTemplate')}
+        </SecondaryButton>
+      </div>
+      {importResult && (
+        <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+          {t('pluginsPage.importResult', { imported: importResult.imported, skipped: importResult.skipped, total: importResult.total })}
+        </p>
+      )}
     </div>
   )
 }

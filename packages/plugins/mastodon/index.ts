@@ -200,14 +200,10 @@ const plugin: Plugin = {
           'json',
           z.object({
             items: z.array(
-              z.object({
+z.object({
                 slug: z.string().min(1),
-                instanceType: z.string().default('mastodon'),
-instanceUrl: z.string().optional(),
                 statusId: z.string().optional(),
                 statusUrl: z.string().optional(),
-                accessToken: z.string().default(''),
-                fediAuthor: z.string().default(''),
                 autoFetch: z.boolean().default(false),
                 cacheTtl: z.number().int().default(30),
               }).refine(d => d.statusId || d.statusUrl, { message: 'statusId or statusUrl required' }),
@@ -223,27 +219,51 @@ instanceUrl: z.string().optional(),
           const failed: { item: any; error: string }[] = []
           let successCount = 0
 
-          // Get site's mastodon config for defaults
+          // Get site's mastodon config — all settings come from authorization
           const siteRow = db.select().from(sites).where(eq(sites.id, siteId)).get() as any
           const fediConfig = siteRow?.settings?.fediConfig || {}
-          const defaultInstanceUrl = fediConfig.instanceUrl || ''
+          const token = fediConfig.accessToken || ''
+          if (!token) {
+            return c.json({ code: 1, message: 'Instance not authorized. Please complete OAuth first.' })
+          }
+          const instanceUrl = (fediConfig.instanceUrl || '').replace(/\/+$/, '')
+          const instanceType = fediConfig.instanceType || 'mastodon'
+          const fediAuthor = fediConfig.fediAuthor || fediConfig.fedAdminAcct || ''
+          const software = fediConfig.software || ''
+
+          if (!instanceUrl) {
+            return c.json({ code: 1, message: 'Instance URL not configured. Please complete OAuth first.' })
+          }
+
+          const adapter = getAdapter(instanceType, software)
+          const headers: Record<string, string> = { Accept: 'application/json' }
+          Object.assign(headers, adapter.authHeader(token))
 
           for (const item of items) {
             const rawStatusId = item.statusId || item.statusUrl || ''
-            const instanceUrl = (item.instanceUrl || defaultInstanceUrl).replace(/\/+$/, '')
             const slug = item.slug.replace(/^\/+|\/+$/g, '')
             if (!rawStatusId) {
               failed.push({ item, error: 'statusId or statusUrl is required' })
               continue
             }
-            if (!instanceUrl) {
-              failed.push({ item, error: 'instanceUrl is required' })
-              continue
-            }
-            const adapter = getAdapter(item.instanceType)
             const statusId = adapter.resolveStatusId(instanceUrl, rawStatusId)
             const id = nanoid()
             try {
+              // Verify the status exists and belongs to the authorized account
+              try {
+                const statusRes = await fetchFedi(adapter.statusUrl(instanceUrl, statusId), headers)
+                const authorAcct = adapter.parseAccount(statusRes).acct
+                const domain = fediAuthor.includes('@') ? fediAuthor.split('@')[1] : instanceUrl.replace(/^https?:\/\//, '')
+                const fullAcct = authorAcct.includes('@') ? authorAcct : `${authorAcct}@${domain}`
+                if (fullAcct !== fediAuthor) {
+                  failed.push({ item, error: `Status author ${fullAcct} does not match authorized account ${fediAuthor}` })
+                  continue
+                }
+              } catch (err: any) {
+                failed.push({ item, error: `Failed to verify status: ${err.message}` })
+                continue
+              }
+
               const existing = db.select().from(mastodonBindings)
                 .where(and(eq(mastodonBindings.siteId, siteId), eq(mastodonBindings.slug, slug)))
                 .get()
@@ -262,11 +282,11 @@ instanceUrl: z.string().optional(),
                 id,
                 siteId,
                 slug,
-                instanceType: item.instanceType,
+                instanceType,
                 instanceUrl,
                 statusId,
-                accessToken: item.accessToken,
-                fediAuthor: item.fediAuthor,
+                accessToken: token,
+                fediAuthor,
                 autoFetch: item.autoFetch ? 1 : 0,
                 cacheTtl: item.cacheTtl,
                 createdAt: now,
@@ -337,6 +357,19 @@ instanceUrl: z.string().optional(),
         db.delete(mastodonCachedComments).where(eq(mastodonCachedComments.bindingId, id)).run()
         db.delete(mastodonBindings).where(eq(mastodonBindings.id, id)).run()
         return c.json({ code: 0 })
+      })
+
+      // DELETE /api/admin/sites/:siteId/mastodon/bindings — batch delete all
+      router.delete('/api/admin/sites/:siteId/mastodon/bindings', async (c) => {
+        const { siteId } = c.req.param()
+        requireSite(c, siteId)
+        const db = getDb()
+        const bindings = db.select().from(mastodonBindings).where(eq(mastodonBindings.siteId, siteId)).all() as any[]
+        for (const b of bindings) {
+          db.delete(mastodonCachedComments).where(eq(mastodonCachedComments.bindingId, b.id)).run()
+        }
+        db.delete(mastodonBindings).where(eq(mastodonBindings.siteId, siteId)).run()
+        return c.json({ code: 0, data: { deleted: bindings.length } })
       })
 
       // POST /api/admin/sites/:siteId/mastodon/bindings/search
@@ -1075,6 +1108,17 @@ instanceUrl: z.string().optional(),
             idMap.set(c.mastodon_comment_id, `fedi-${c.id}`)
           }
 
+          const statusAuthor = binding.fedi_author || (() => {
+            try {
+              const siteRow = db.prepare('SELECT settings FROM sites WHERE id = ?').get(ctx.siteId) as any
+              if (siteRow) {
+                const s = typeof siteRow.settings === 'string' ? JSON.parse(siteRow.settings) : (siteRow.settings || {})
+                return s?.fediConfig?.fediAuthor || s?.fediConfig?.fedAdminAcct || ''
+              }
+            } catch {}
+            return ''
+          })()
+
           const fediComments = allCache.map((c: any) => ({
             id: `fedi-${c.id}`,
             mastodonCommentId: c.mastodon_comment_id,
@@ -1115,13 +1159,13 @@ instanceUrl: z.string().optional(),
               const sid = binding.status_id || ''
               const instance = binding.instance_url.replace(/\/+$/, '')
               const itype = (binding.software || binding.instance_type || '').toLowerCase()
-              const acct = binding.fedi_author || ''
-              const username = acct.includes('@') ? acct.split('@')[0] : acct
+const acct = statusAuthor
+const username = acct.replace(/^@+/, '').split('@')[0]
               if (['gotosocial', 'friendica'].includes(itype)) {
-                return username ? `${instance}/@${username}/statuses/${sid}` : `${instance}/api/v1/statuses/${sid}`
+                return username ? `${instance}/@${username}/statuses/${sid}` : `${instance}/statuses/${sid}`
               }
               if (['mastodon', 'hometown', 'mitra', 'pixelfed'].includes(itype)) {
-                return username ? `${instance}/@${username}/${sid}` : `${instance}/api/v1/statuses/${sid}`
+                return username ? `${instance}/@${username}/${sid}` : `${instance}/${sid}`
               }
               if (['pleroma', 'akkoma', 'misskey', 'sharkey', 'firefish'].includes(itype)) return `${instance}/notes/${sid}`
               if (itype === 'lemmy' || itype === 'piefed') return `${instance}/comment/${sid}`

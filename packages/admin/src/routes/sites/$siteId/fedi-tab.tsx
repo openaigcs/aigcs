@@ -98,10 +98,18 @@ export function FediverseTab({ siteId, siteDomain }: { siteId: string; siteDomai
     onError: (err: Error) => setRefreshError(fediError(err)),
   })
 
-  const deleteBinding = useMutation({
+const deleteBinding = useMutation({
     mutationFn: (id: string) =>
       api(`/api/admin/sites/${siteId}/mastodon/bindings/${id}`, { method: 'DELETE' }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['mastodon-bindings', siteId] }); setRefreshError(null) },
+    onError: (err: Error) => setRefreshError(fediError(err)),
+  })
+
+  const deleteAllBindings = useMutation({
+    mutationFn: () =>
+      api(`/api/admin/sites/${siteId}/mastodon/bindings`, { method: 'DELETE' }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['mastodon-bindings', siteId] }); setRefreshError(null) },
+    onError: (err: Error) => setRefreshError(fediError(err)),
   })
 
   const searchStatus = useMutation({
@@ -162,6 +170,7 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
   const [bindInputs, setBindInputs] = useState<Record<string, string>>({})
   const [viewComments, setViewComments] = useState<string | null>(null)
   const [confirmDeleteBinding, setConfirmDeleteBinding] = useState<string | null>(null)
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false)
   const [publishingSlug, setPublishingSlug] = useState<string | null>(null)
 
   const proxyFediAvatar = (url: string) => {
@@ -370,30 +379,49 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
           )}
         </div>
         <div className="grid grid-cols-[auto_1fr_1fr] gap-3">
-          <div>
-            <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.instanceType')}</label>
-            <Select value={cfg.instanceType} onChange={(v: string) => setConfigForm({ ...cfg, instanceType: v })}>
-              {INSTANCE_TYPES.map(t => (
-                <option key={t} value={t}>{INSTANCE_LABELS[t] || t.charAt(0).toUpperCase() + t.slice(1)}</option>
-              ))}
-            </Select>
-            {cfg.instanceType === 'custom' && (
-              <Input value={customInstanceType} onChange={(v: string) => { setCustomInstanceType(v); if (!configForm) setConfigForm(getConfig() as any) }} placeholder="Fediverse Software" />
-            )}
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.instanceUrl')}</label>
-            <Input value={cfg.instanceUrl} onChange={(v: string) => setConfigForm({ ...cfg, instanceUrl: v })} placeholder={INSTANCE_EXAMPLES[cfg.instanceType] || 'https://example.com'} onBlur={(e: any) => {
-              let url = (e.target?.value || '').trim()
-              if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url
-              url = url.replace(/\/+$/, '')
-              if (url !== cfg.instanceUrl) setConfigForm({ ...cfg, instanceUrl: url })
-            }} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.fedAdminAcct')}</label>
-            <Input value={fedAdminAcct} onChange={(v: string) => { setFedAdminAcct(v); if (!configForm) setConfigForm(getConfig() as any) }} placeholder="@admin@example.com" />
-          </div>
+          {isAuthorized && fediConfig?.fediAuthor ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.instanceType')}</label>
+                <div className="h-9 flex items-center text-sm text-gray-700 dark:text-gray-300">{INSTANCE_LABELS[fediConfig.instanceType] || fediConfig.instanceType}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.instanceUrl')}</label>
+                <div className="h-9 flex items-center text-sm text-gray-700 dark:text-gray-300">{fediConfig.instanceUrl}</div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.fediAuthor')}</label>
+                <div className="h-9 flex items-center text-sm text-gray-700 dark:text-gray-300">@{fediConfig.fediAuthor}</div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.instanceType')}</label>
+                <Select value={cfg.instanceType} onChange={(v: string) => setConfigForm({ ...cfg, instanceType: v })}>
+                  {INSTANCE_TYPES.map(t => (
+                    <option key={t} value={t}>{INSTANCE_LABELS[t] || t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                  ))}
+                </Select>
+                {cfg.instanceType === 'custom' && (
+                  <Input value={customInstanceType} onChange={(v: string) => { setCustomInstanceType(v); if (!configForm) setConfigForm(getConfig() as any) }} placeholder="Fediverse Software" />
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.instanceUrl')}</label>
+                <Input value={cfg.instanceUrl} onChange={(v: string) => setConfigForm({ ...cfg, instanceUrl: v })} placeholder={INSTANCE_EXAMPLES[cfg.instanceType] || 'https://example.com'} onBlur={(e: any) => {
+                  let url = (e.target?.value || '').trim()
+                  if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url
+                  url = url.replace(/\/+$/, '')
+                  if (url !== cfg.instanceUrl) setConfigForm({ ...cfg, instanceUrl: url })
+                }} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.fedAdminAcct')}</label>
+                <Input value={fedAdminAcct} onChange={(v: string) => { setFedAdminAcct(v); if (!configForm) setConfigForm(getConfig() as any) }} placeholder="@admin@example.com" />
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-3 mt-4">
@@ -548,6 +576,14 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('fedi.bindings')}</h3>
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-500">{t('sites.totalCache', { count: cacheTotal })}</span>
+            {confirmDeleteAll ? (
+              <div className="flex items-center gap-1">
+                <DangerButton onClick={() => { deleteAllBindings.mutate(); setConfirmDeleteAll(false) }} disabled={deleteAllBindings.isPending}>{t('common.confirm')}</DangerButton>
+                <SecondaryButton onClick={() => setConfirmDeleteAll(false)}>{t('common.cancel')}</SecondaryButton>
+              </div>
+            ) : (
+              <DangerButton onClick={() => setConfirmDeleteAll(true)}>{t('fedi.deleteAllBindings')}</DangerButton>
+            )}
           </div>
         </div>
         <p className="text-xs text-gray-500 mb-3" dangerouslySetInnerHTML={{ __html: t('fedi.bindingsHint') }} />
@@ -589,9 +625,11 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
                           </td>
                           <td className="py-2 pr-4">
                             {binding ? (
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1 flex-wrap">
                                 <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 whitespace-nowrap">{t('fedi.bindingActive')}</span>
                                 <span className="text-xs text-gray-500 font-mono truncate">{(binding.statusId || binding.status_id || '').split('/').pop()}</span>
+                                <span className="text-xs text-gray-400">·</span>
+                                <span className="text-xs text-gray-400 font-mono">{binding.instanceType || binding.instance_type || '?'}</span>
                               </div>
                             ) : (
                               <Input value={bindInputs[entry.path] || ''} onChange={(v: string) => setBindInputs(prev => ({ ...prev, [entry.path]: v }))} placeholder="https://实例/@作者/帖子ID" className="w-full" />

@@ -49,7 +49,9 @@ const DEFAULT_SELECTORS = [
 
 export function extractPageTitle(html: string): string {
   const dom = new JSDOM(html)
-  return dom.window.document.title || ''
+  const raw = dom.window.document.title || ''
+  const match = raw.match(/^(.+?)\s*[|\-—–:]{1,2}\s*.+$/)
+  return match ? match[1].trim() : raw
 }
 
 export function extractPageContent(

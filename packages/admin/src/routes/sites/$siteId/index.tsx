@@ -693,6 +693,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
   })
 
   const [testingId, setTestingId] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<{ id: string; success: boolean; message?: string } | null>(null)
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) =>
@@ -864,9 +865,19 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                         {t('sites.notEnabled')}
                       </SecondaryButton>
                     )}
-                    <PrimaryButton onClick={() => { setTestingId(p.id); testMutation.mutate(p.id, { onSettled: () => setTestingId(null) }) }} disabled={testingId !== null && testingId !== p.id}>
+                    <PrimaryButton onClick={() => {
+                      setTestResult(null)
+                      setTestingId(p.id)
+                      testMutation.mutate(p.id, {
+                        onSuccess: () => { setTestResult({ id: p.id, success: true }); setTimeout(() => setTestResult(r => r?.id === p.id ? null : r), 3000) },
+                        onError: (err: Error) => { setTestResult({ id: p.id, success: false, message: err.message }); setTimeout(() => setTestResult(r => r?.id === p.id ? null : r), 5000) },
+                        onSettled: () => setTestingId(null),
+                      })
+                    }} disabled={testingId !== null && testingId !== p.id}>
                       {testingId === p.id ? t('sites.testingProvider') : t('sites.test')}
                     </PrimaryButton>
+                    {testResult && testResult.id === p.id && testResult.success && <p className="text-green-600 text-sm mt-2">{t('sites.testSuccess')}</p>}
+                    {testResult && testResult.id === p.id && !testResult.success && <p className="text-red-500 text-sm mt-2">{t('common.error')}: {testResult.message}</p>}
                     <SecondaryButton onClick={() => { setEditingId(p.id); setEditForm(p) }}>
                       {t('common.edit')}
                     </SecondaryButton>
@@ -887,8 +898,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                   </div>
                 </div>
               )}
-              {testingId === p.id && testMutation.isSuccess && <p className="text-green-600 text-sm mt-2">{t('sites.testSuccess')}</p>}
-              {testingId === p.id && testMutation.isError && <p className="text-red-500 text-sm mt-2">{t('common.error')}: {(testMutation.error as Error).message}</p>}
+              
             </div>
           ))}
         </div>
@@ -1707,7 +1717,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
             {t('content.generateSelected')}
           </PrimaryButton>
           <PrimaryButton onClick={() => setGeneratePanel('all')}>
-            {warmMutation.isPending ? t('common.loading') : `${t('sites.warmCache')} (${pendingCount})`}
+            {warmMutation.isPending ? t('common.loading') : t('sites.warmCache')}
           </PrimaryButton>
           <PrimaryButton onClick={() => setConfirmClear(true)} disabled={clearMutation.isPending}>
             {clearMutation.isPending ? t('common.loading') : t('sites.clearCache')}
@@ -1817,7 +1827,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
         {/* Warm confirm dialog */}
         {confirmWarm && (
           <div className="mb-4 p-3 border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center gap-3">
-            <span className="text-sm text-orange-700 dark:text-orange-300">{t('content.confirmWarm', { count: pendingCount })}</span>
+            <span className="text-sm text-orange-700 dark:text-orange-300">{t('content.confirmWarm')}</span>
             <PrimaryButton onClick={() => { warmMutation.mutate(); setConfirmWarm(false) }} disabled={warmMutation.isPending}>
               {warmMutation.isPending ? t('common.loading') : t('sites.warmCache')}
             </PrimaryButton>
@@ -1967,17 +1977,17 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                   <th className="pb-2 pr-2 w-[2%]">
                     <input type="checkbox" onChange={toggleSelectAllItems} checked={items.length > 0 && selectedPaths.length === items.length} className="dark:bg-gray-800" />
                   </th>
-                  <th className="pb-2 pr-3 w-[30%]">
+                  <th className="pb-2 pr-3 w-[26%]">
                     <button onClick={() => { setSortBy('title'); setSortOrder(sortBy === 'title' && sortOrder === 'asc' ? 'desc' : 'asc') }} className="cursor-pointer flex items-center gap-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                       {t('sites.rssTitle')} <span className={sortBy === 'title' ? 'text-blue-600' : 'text-gray-300'}>{sortBy === 'title' ? (sortOrder === 'asc' ? '↑' : '↓') : '↑↓'}</span>
                     </button>
                   </th>
-                  <th className="pb-2 pr-3 w-[30%]">
+                  <th className="pb-2 pr-3 w-[26%]">
                     <button onClick={() => { setSortBy('path'); setSortOrder(sortBy === 'path' && sortOrder === 'asc' ? 'desc' : 'asc') }} className="cursor-pointer flex items-center gap-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                       {t('sites.rssPath')} <span className={sortBy === 'path' ? 'text-blue-600' : 'text-gray-300'}>{sortBy === 'path' ? (sortOrder === 'asc' ? '↑' : '↓') : '↑↓'}</span>
                     </button>
                   </th>
-                  <th className="pb-2 pr-3 w-[12%]">
+                  <th className="pb-2 pr-3 w-[20%]">
                       <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1) }} className="text-gray-500 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-800 text-xs">
                         <option value="">{t('common.all')}</option>
                         <option value="ready">{t('content.statusGenerated')}</option>
@@ -1988,7 +1998,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                       <select value={filterProvider} onChange={(e) => { setFilterProvider(e.target.value); setPage(1) }} className="text-gray-500 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-800 text-xs ml-1">
                         <option value="">{t('sites.allProviders')}</option>
                         {(siteProviders || []).filter((p: any) => p.enabled).map((p: any) => (
-                          <option key={p.id} value={p.name}>{p.displayName || p.name}</option>
+                          <option key={p.id} value={p.displayName}>{p.displayName || p.name}</option>
                         ))}
                       </select>
                   </th>

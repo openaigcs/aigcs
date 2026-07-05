@@ -667,7 +667,11 @@ router.get('/sites/:siteId/cache', async (c) => {
     conditions.push(eq(pageCache.status, filterStatus))
   }
   if (filterProvider) {
-    conditions.push(sql`EXISTS (SELECT 1 FROM comments WHERE site_id = ${pageCache.siteId} AND path = ${pageCache.path} AND provider_name = ${filterProvider})`)
+    if (filterStatus === 'failed') {
+      conditions.push(sql`NOT EXISTS (SELECT 1 FROM comments WHERE site_id = ${pageCache.siteId} AND path = ${pageCache.path} AND provider_name = ${filterProvider})`)
+    } else {
+      conditions.push(sql`EXISTS (SELECT 1 FROM comments WHERE site_id = ${pageCache.siteId} AND path = ${pageCache.path} AND provider_name = ${filterProvider})`)
+    }
   }
 
   const baseCondition = conditions.length === 1 ? conditions[0] : and(...conditions as [any, ...any[]])
@@ -915,7 +919,7 @@ router.post('/sites/:siteId/import-rss', zValidator('json', z.object({
   const dom = new JSDOM(xml, { contentType: 'text/xml' })
   const doc = dom.window.document
 
-  const entries: Array<{ title: string; link: string }> = []
+  const entries: Array<{ title: string; link: string; content: string }> = []
 
   // Try RSS items
   const items = doc.querySelectorAll('item')
@@ -923,7 +927,10 @@ router.post('/sites/:siteId/import-rss', zValidator('json', z.object({
     let link = item.querySelector('link')?.textContent || ''
     link = link.trim()
     const title = item.querySelector('title')?.textContent || ''
-    if (link) entries.push({ title, link })
+    const desc = item.querySelector('description')?.textContent || ''
+    const encoded = item.querySelector('encoded')?.textContent || item.querySelector('content\\:encoded')?.textContent || ''
+    const content = encoded || desc
+    if (link) entries.push({ title, link, content })
   })
 
   // Try Atom entries
@@ -936,7 +943,10 @@ router.post('/sites/:siteId/import-rss', zValidator('json', z.object({
       link = linkEl.getAttribute('href') || linkEl.textContent || ''
     }
     link = link.trim()
-    if (link) entries.push({ title, link })
+    const summary = entry.querySelector('summary')?.textContent || ''
+    const contentEl = entry.querySelector('content')?.textContent || ''
+    const content = contentEl || summary
+    if (link) entries.push({ title, link, content })
   })
 
   // Try sitemap urls (if no RSS/Atom entries found)
@@ -945,7 +955,7 @@ router.post('/sites/:siteId/import-rss', zValidator('json', z.object({
     urlElements.forEach((urlEl: Element) => {
       const loc = urlEl.querySelector('loc')?.textContent || ''
       const title = urlEl.querySelector('news\\:title')?.textContent || urlEl.querySelector('image\\:title')?.textContent || ''
-      if (loc) entries.push({ title, link: loc.trim() })
+      if (loc) entries.push({ title, link: loc.trim(), content: '' })
     })
   }
 
@@ -970,7 +980,7 @@ router.post('/sites/:siteId/import-rss', zValidator('json', z.object({
     const existing = db.select().from(pageCache).where(eq(pageCache.id, cacheHash)).get()
     if (!existing) {
       const now = new Date().toISOString()
-      db.insert(pageCache).values({ id: cacheHash, siteId, path, status: 'pending', title: entry.title, createdAt: now, updatedAt: now }).run()
+      db.insert(pageCache).values({ id: cacheHash, siteId, path, status: 'pending', title: entry.title, contentSource: entry.content || null, createdAt: now, updatedAt: now }).run()
       imported++
       results.push({ url: entry.link, title: entry.title, path, status: 'imported' })
     } else {
@@ -1005,18 +1015,53 @@ router.post('/sites/:siteId/cache/warm', zValidator('json', z.object({
   requireSiteOwnership(c, siteId)
   const body = c.req.valid('json')
 
-  const pending = db.select().from(pageCache)
-    .where(and(eq(pageCache.siteId, siteId), eq(pageCache.status, 'pending')))
-    .all()
+  const opts = body || {}
+  const raw = getRawDb() as import('better-sqlite3').Database
 
-  if (pending.length === 0) {
-    return c.json({ code: 0, data: { total: 0, message: 'No pending entries' } })
+  let entries: any[]
+  if (opts.providerIds && opts.providerIds.length > 0) {
+    const providerNames = db.select({ displayName: providers.displayName })
+      .from(providers)
+      .where(and(
+        eq(providers.siteId, siteId),
+        sql`${providers.id} IN (${opts.providerIds.join(',')})`
+      )).all() as any[]
+    const names = providerNames.map((p: any) => p.displayName)
+
+    if (names.length > 0) {
+      const placeholders = names.map(() => '?').join(',')
+      entries = raw.prepare(`
+        SELECT * FROM page_cache
+        WHERE site_id = ?
+        AND (
+          status = 'pending'
+          OR (
+            status = 'ready'
+            AND NOT EXISTS (
+              SELECT 1 FROM comments
+              WHERE site_id = page_cache.site_id AND path = page_cache.path AND provider_name IN (${placeholders})
+            )
+          )
+        )
+      `).all(siteId, ...names) as any[]
+    } else {
+      entries = db.select().from(pageCache)
+        .where(and(eq(pageCache.siteId, siteId), eq(pageCache.status, 'pending')))
+        .all()
+    }
+  } else {
+    entries = db.select().from(pageCache)
+      .where(and(eq(pageCache.siteId, siteId), eq(pageCache.status, 'pending')))
+      .all()
+  }
+
+  if (entries.length === 0) {
+    return c.json({ code: 0, data: { total: 0, message: 'No entries need generation' } })
   }
 
   const site = db.select().from(sites).where(eq(sites.id, siteId)).get() as any
 
-  const opts = body || {}
-  warmCacheAsync(siteId, site.domain, pending as any[], {
+  warmCacheAsync(siteId, site.domain, entries as any[], {
     providerIds: opts.providerIds,
     concurrency: opts.concurrency || 1,
     interval: opts.interval ?? 10,
@@ -1027,7 +1072,7 @@ router.post('/sites/:siteId/cache/warm', zValidator('json', z.object({
 
   const user = c.get('user')!
   insertAuditLog(db, { id: nanoid(), userId: user.id, action: 'cache.warm', details: { siteId, path: undefined, selector: opts.selector } })
-  return c.json({ code: 0, data: { total: pending.length, message: `Warming ${pending.length} entries` } })
+  return c.json({ code: 0, data: { total: entries.length, message: `Warming ${entries.length} entries` } })
 })
 
 async function warmCacheAsync(siteId: string, domain: string, entries: any[], options?: { providerIds?: string[]; concurrency?: number; interval?: number; selector?: string }) {

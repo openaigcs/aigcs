@@ -427,14 +427,14 @@
     "deletedEntries": "{{count}} entries deleted",
     "undo": "Undo",
     "restoreSuccess": "Restored {{count}} entries",
-    "confirmWarm": "Generating comments for {{count}} entries will consume AI API tokens. Continue?",
+    "confirmWarm": "Generating comments will consume AI API tokens. Continue?",
     "singleSettings": "Manual Generate",
     "emptyHint": "Use your site's RSS feed as content source. Please import RSS.",
     "searchPlaceholder": "Search title or path...",
     "noSearchResults": "No matching entries found",
     "statusGenerated": "Generated",
     "statusPending": "Pending",
-    "statusUnfetched": "Unfetched",
+    "statusUnfetched": "No RSS Source",
     "statusFailed": "Failed"
   },
   "plugins": {

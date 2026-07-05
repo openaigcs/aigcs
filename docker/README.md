@@ -33,7 +33,7 @@ docker build -t eallion/aigcs:latest .
 | `ENCRYPTION_KEY` | — | AES-256-GCM 加密密钥，未设置时使用 JWT_SECRET |
 | `RATE_LIMIT_MAX` | `100` | 窗口内最大请求数 |
 | `RATE_LIMIT_WINDOW` | `60` | 速率限制窗口（秒） |
-| `ADMIN_URL` | `http://localhost:5173` | 管理面板 URL（用于邮件模板等） |
+| `ADMIN_URL` | `http://localhost:5173` | 管理面板 URL（用于邮件模板等）。不设置则自动从请求 URL 推断 |
 
 ### SMTP
 

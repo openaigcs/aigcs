@@ -280,7 +280,7 @@ formPosition: getPluginSetting('formPosition') || 'top',
 
                 const siteDomain = siteRow?.domain || ''
                 const pageUrl = `https://${siteDomain}${ctx.path}`
-                const adminUrl = process.env.ADMIN_URL || 'http://localhost:5173'
+                const adminUrl = process.env.ADMIN_URL || (siteDomain ? `https://${siteDomain}` : '')
                 const unsubscribeUrl = buildUnsubscribeUrl(adminUrl, notifyEmail, ctx.siteId, 'en')
                 const unsubscribeText = 'Unsubscribe'
 
@@ -338,7 +338,7 @@ formPosition: getPluginSetting('formPosition') || 'top',
                 ).get(ctx.siteId) as { domain: string } | undefined
                 const siteDomain = siteRow?.domain || ''
                 const pageUrl = `https://${siteDomain}${ctx.path}`
-                const adminUrl = process.env.ADMIN_URL || 'http://localhost:5173'
+                const adminUrl = process.env.ADMIN_URL || (siteDomain ? `https://${siteDomain}` : '')
                 const unsubscribeUrl = buildUnsubscribeUrl(adminUrl, parentRow.author_email, ctx.siteId, 'en')
                 const unsubscribeText = 'Unsubscribe'
                 const templateData = { authorName: ctx.authorName, domain: siteDomain, path: ctx.path, pageUrl, content: ctx.content }

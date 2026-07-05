@@ -567,7 +567,13 @@ router.post('/:domain/comment/:id/request-delete', async (c) => {
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString()
   const codeId = randomUUID()
 
-  const adminUrl = process.env.ADMIN_URL || 'http://localhost:5173'
+  const adminUrl = process.env.ADMIN_URL || (() => {
+    try {
+      const reqUrl = new URL(c.req.url)
+      const proto = c.req.header('x-forwarded-proto') ? `${c.req.header('x-forwarded-proto')}:` : reqUrl.protocol
+      return `${proto}//${reqUrl.host}`
+    } catch { return '' }
+  })()
   const locale = c.req.query('locale') || 'en'
   const unsubscribeText = locale?.startsWith('zh') ? 'Unsubscribe（取消订阅）' : 'Unsubscribe'
   if (isUnsubscribed(raw, body.email.toLowerCase(), site.id)) {
@@ -915,7 +921,7 @@ async function generateComments(siteId: string, path: string, siteDomain?: strin
       const { renderEmail, getEmailSubject, getEmailLocale } = await import('../email-templates/index.js')
       const user = db.select().from(users).where(eq(users.id, site.userId)).get() as any
       if (user?.email && !isUnsubscribed(raw, user.email, siteId)) {
-        const adminUrl = process.env.ADMIN_URL || 'http://localhost:5173'
+        const adminUrl = process.env.ADMIN_URL || ''
         const emailLocale = getEmailLocale(raw)
         const templateData = { path, domain: site.domain }
         let body: string | undefined

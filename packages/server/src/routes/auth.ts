@@ -186,7 +186,13 @@ router.post('/register', zValidator('json', registerSchema), async (c) => {
       if (isUnsubscribed(raw, email.toLowerCase(), 'global')) return
       const { sendEmail } = await import('../services/email.js')
       const { renderEmail, getEmailSubject, getEmailLocale } = await import('../email-templates/index.js')
-      const adminUrl = process.env.ADMIN_URL || 'http://localhost:5173'
+      const adminUrl = process.env.ADMIN_URL || (() => {
+        try {
+          const reqUrl = new URL(c.req.url)
+          const proto = c.req.header('x-forwarded-proto') ? `${c.req.header('x-forwarded-proto')}:` : reqUrl.protocol
+          return `${proto}//${reqUrl.host}`
+        } catch { return '' }
+      })()
       const emailLocale = getEmailLocale(raw)
       const unsubscribeUrl = buildUnsubscribeUrl(adminUrl, email.toLowerCase(), 'global', emailLocale)
       sendEmail(email, getEmailSubject('welcome', emailLocale), renderEmail({

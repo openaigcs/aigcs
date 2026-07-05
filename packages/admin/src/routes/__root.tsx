@@ -1,4 +1,5 @@
 import { createRootRoute, Link, Outlet, useRouter, useRouterState } from '@tanstack/react-router'
+import { version } from '../../package.json'
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -225,7 +226,7 @@ export const Route = createRootRoute({
                       )}
                     </div>
                     <a href="https://github.com/eallion/aigcs" target="_blank" rel="noopener noreferrer" onClick={() => setShowUserMenu(false)} className="block px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                      GitHub v1.0.0
+                      GitHub v{version}
                     </a>
                     <hr className="border-gray-200 dark:border-gray-600 my-1" />
                     <button onClick={() => { handleLogout(); setShowUserMenu(false) }} className="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">

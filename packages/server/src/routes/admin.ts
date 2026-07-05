@@ -667,10 +667,11 @@ router.get('/sites/:siteId/cache', async (c) => {
     conditions.push(eq(pageCache.status, filterStatus))
   }
   if (filterProvider) {
-    if (filterStatus === 'failed') {
-      conditions.push(sql`NOT EXISTS (SELECT 1 FROM comments WHERE site_id = ${pageCache.siteId} AND path = ${pageCache.path} AND provider_name = ${filterProvider})`)
+    if (filterStatus === 'pending' || filterStatus === 'unfetched') {
+      // pending/unfetched entries have no comments yet — no provider to filter on
     } else {
-      conditions.push(sql`EXISTS (SELECT 1 FROM comments WHERE site_id = ${pageCache.siteId} AND path = ${pageCache.path} AND provider_name = ${filterProvider})`)
+      // show entries missing this provider's comments (needs generation)
+      conditions.push(sql`NOT EXISTS (SELECT 1 FROM comments WHERE site_id = ${pageCache.siteId} AND path = ${pageCache.path} AND provider_name = ${filterProvider})`)
     }
   }
 

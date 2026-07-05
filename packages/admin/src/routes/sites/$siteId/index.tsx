@@ -703,7 +703,9 @@ function ProvidersTab({ siteId }: { siteId: string }) {
 
   const saveEditMutation = useMutation({
     mutationFn: (data: any) => {
-      const { apiKey, ...clean } = data
+      const { id, apiKey, apiEndpoint, ...clean } = data
+      if (apiKey && !apiKey.startsWith('****')) clean.apiKey = apiKey
+      if (apiEndpoint) clean.apiEndpoint = apiEndpoint
       return api(`/api/admin/sites/${siteId}/providers/${data.id}`, {
         method: 'PATCH',
         body: JSON.stringify(clean),
@@ -814,6 +816,14 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                       <Input value={editForm.model || ''} onChange={(v) => setEditForm({ ...editForm, model: v })} />
                     </div>
                     <div>
+                      <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.apiEndpoint')}</label>
+                      <Input value={editForm.apiEndpoint || ''} onChange={(v) => setEditForm({ ...editForm, apiEndpoint: v })} placeholder={t('sites.apiEndpointPlaceholder')} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.apiKey')}</label>
+                      <Input type="password" value={editForm.apiKey || ''} onChange={(v) => setEditForm({ ...editForm, apiKey: v })} placeholder={t('sites.apiKeyPlaceholder')} />
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.sortWeight')}</label>
                       <Input type="number" value={editForm.sortWeight ?? 0} onChange={(v) => setEditForm({ ...editForm, sortWeight: Number(v) })} />
                     </div>
@@ -878,7 +888,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                     </PrimaryButton>
                     {testResult && testResult.id === p.id && testResult.success && <p className="text-green-600 text-sm mt-2">{t('sites.testSuccess')}</p>}
                     {testResult && testResult.id === p.id && !testResult.success && <p className="text-red-500 text-sm mt-2">{t('common.error')}: {testResult.message}</p>}
-                    <SecondaryButton onClick={() => { setEditingId(p.id); setEditForm(p) }}>
+                    <SecondaryButton onClick={() => { setEditingId(p.id); setEditForm({ ...p, apiKey: '', apiEndpoint: '' }) }}>
                       {t('common.edit')}
                     </SecondaryButton>
                     {confirmDeleteId === p.id ? (
@@ -1555,6 +1565,8 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
   })
 
   // ── Generate Comments ──
+  const [generateProgress, setGenerateProgress] = useState<{ total: number; completed: number; failed: number } | null>(null)
+
   const generateMutation = useMutation({
     mutationFn: async (paths: string[]) => {
       const body: any = { paths }
@@ -1570,13 +1582,41 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['site-cache', siteId] })
+      setGeneratePanel(null)
       setResultMsg(t('content.generateSuccess', { count: data.generated }))
       setTimeout(() => setResultMsg(null), 3000)
     },
     onError: (err: Error) => {
+      setGeneratePanel(null)
       setResultMsg(`${t('common.error')}: ${err.message}`)
     },
   })
+
+  async function generateOne(path: string) {
+    const body: any = { paths: [path] }
+    if (!selectAllProviders) body.providerIds = selectedProviderIds
+    const res = await fetch(`/api/admin/sites/${siteId}/cache/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('token')}`, 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify(body),
+    })
+    const json = await res.json()
+    if (!res.ok || json.code !== 0) return false
+    return true
+  }
+
+  async function generateAll(paths: string[]) {
+    setGenerateProgress({ total: paths.length, completed: 0, failed: 0 })
+    for (const path of paths) {
+      const ok = await generateOne(path)
+      setGenerateProgress(prev => prev ? { ...prev, completed: prev.completed + 1, failed: prev.failed + (ok ? 0 : 1) } : prev)
+    }
+    queryClient.invalidateQueries({ queryKey: ['site-cache', siteId] })
+    setGenerateProgress(null)
+    setGeneratePanel(null)
+    setResultMsg(t('content.generateSuccess', { count: paths.length }))
+    setTimeout(() => setResultMsg(null), 3000)
+  }
 
   // ── Delete ──
   const [confirmDeletePath, setConfirmDeletePath] = useState<string | null>(null)
@@ -1764,9 +1804,9 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
             <div className="flex gap-2">
               <PrimaryButton onClick={() => {
                 if (generatePanel === 'all') { setConfirmWarm(true); setGeneratePanel(null) }
-                else { generateMutation.mutate(selectedPaths); setGeneratePanel(null) }
-              }} disabled={generateMutation.isPending || warmMutation.isPending}>
-                {generateMutation.isPending || warmMutation.isPending ? t('common.loading') : t('content.generateConfirm')}
+                else { generateAll(selectedPaths) }
+              }} disabled={generateProgress !== null || warmMutation.isPending}>
+                {generateProgress ? `${t('content.generatingHint')} (${generateProgress.completed}/${generateProgress.total})` : t('content.generateConfirm')}
               </PrimaryButton>
               <SecondaryButton onClick={() => setGeneratePanel(null)}>{t('common.cancel')}</SecondaryButton>
             </div>
@@ -1991,6 +2031,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                       <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1) }} className="text-gray-500 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-800 text-xs">
                         <option value="">{t('common.all')}</option>
                         <option value="ready">{t('content.statusGenerated')}</option>
+                        <option value="missing">{t('content.statusNotGenerated')}</option>
                         <option value="pending">{t('content.statusPending')}</option>
                         <option value="failed">{t('content.statusFailed')}</option>
                         <option value="unfetched">{t('content.statusUnfetched')}</option>
@@ -2032,6 +2073,15 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                           entry.status === 'generating' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
                           'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
                         }`}>{entry.status}</span>
+                        {cacheStatus?.providerStatusMap?.[entry.path] && (
+                          <div className="flex flex-wrap gap-0.5 mt-1">
+                            {Object.entries(cacheStatus.providerStatusMap[entry.path]).map(([name, st]) => (
+                              <span key={name} className={`inline-block w-1.5 h-1.5 rounded-full ${
+                                st === 'ready' ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+                              }`} title={`${name}: ${st === 'ready' ? t('content.statusGenerated') : t('content.statusPending')}`} />
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="py-2 pr-4 text-xs text-gray-500">{entry.generatedAt ? new Date(entry.generatedAt).toLocaleString() : '-'}</td>
                       <td className="py-2 pr-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>

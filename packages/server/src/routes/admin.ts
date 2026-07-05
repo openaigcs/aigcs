@@ -301,7 +301,7 @@ router.patch('/sites/:siteId/providers/:providerId', async (c) => {
   const site = db.select().from(sites).where(and(eq(sites.id, siteId), eq(sites.userId, user.id))).get()
   if (!site) throw new HTTPException(404, { message: 'Site not found' })
 
-  if (body.apiKey !== undefined) body.apiKey = encrypt(body.apiKey as string)
+  if (body.apiKey !== undefined && typeof body.apiKey === 'string' && !body.apiKey.startsWith('****')) body.apiKey = encrypt(body.apiKey as string)
   db.update(providers).set(body).where(and(eq(providers.id, providerId), eq(providers.siteId, siteId))).run()
 
   insertAuditLog(db, {
@@ -663,14 +663,16 @@ router.get('/sites/:siteId/cache', async (c) => {
   }
   if (filterStatus === 'unfetched') {
     conditions.push(sql`${pageCache.contentSource} IS NULL`)
+  } else if (filterStatus === 'missing') {
+    // missing is provider-level status, skip page-level status filter
   } else if (filterStatus) {
     conditions.push(eq(pageCache.status, filterStatus))
   }
   if (filterProvider) {
     if (filterStatus === 'pending' || filterStatus === 'unfetched') {
-      // pending/unfetched entries have no comments yet — no provider to filter on
-    } else {
-      // show entries missing this provider's comments (needs generation)
+    } else if (filterStatus === 'ready') {
+      conditions.push(sql`EXISTS (SELECT 1 FROM comments WHERE site_id = ${pageCache.siteId} AND path = ${pageCache.path} AND provider_name = ${filterProvider})`)
+    } else if (filterStatus === 'missing' || filterStatus === 'failed') {
       conditions.push(sql`NOT EXISTS (SELECT 1 FROM comments WHERE site_id = ${pageCache.siteId} AND path = ${pageCache.path} AND provider_name = ${filterProvider})`)
     }
   }
@@ -700,7 +702,39 @@ router.get('/sites/:siteId/cache', async (c) => {
     .orderBy(sortOrder === 'asc' ? sql`${order} ASC` : sql`${order} DESC`)
     .limit(limit).offset(offset).all()
 
-  return c.json({ code: 0, data: { total: total?.count ?? 0, byStatus, items, page, limit } })
+  // Per-provider status for current page
+  let providerStatusMap: Record<string, Record<string, string>> = {}
+  const paths = items.map((i: any) => i.path)
+  if (paths.length > 0) {
+    const enabledProviders: { id: string; displayName: string }[] = db.select({
+      id: providers.id, displayName: providers.displayName,
+    }).from(providers)
+      .where(and(eq(providers.siteId, siteId), eq(providers.enabled, 1 as any)))
+      .all() as any[]
+    if (enabledProviders.length > 0) {
+      const raw = getRawDb() as import('better-sqlite3').Database
+      const placeholders = paths.map(() => '?').join(',')
+      const commentRows = raw.prepare(`
+        SELECT path, provider_name FROM comments
+        WHERE site_id = ? AND path IN (${placeholders})
+      `).all(siteId, ...paths) as Array<{ path: string; provider_name: string }>
+      const pathComments = new Map<string, Set<string>>()
+      for (const row of commentRows) {
+        if (!pathComments.has(row.path)) pathComments.set(row.path, new Set())
+        pathComments.get(row.path)!.add(row.provider_name)
+      }
+      for (const path of paths) {
+        const existing = pathComments.get(path) || new Set()
+        const status: Record<string, string> = {}
+        for (const p of enabledProviders) {
+          status[p.displayName] = existing.has(p.displayName) ? 'ready' : 'missing'
+        }
+        providerStatusMap[path] = status
+      }
+    }
+  }
+
+  return c.json({ code: 0, data: { total: total?.count ?? 0, byStatus, items, page, limit, providerStatusMap } })
 })
 
 router.post('/sites/:siteId/cache/clear', async (c) => {

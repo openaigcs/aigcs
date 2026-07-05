@@ -905,6 +905,7 @@ async function generateComments(siteId: string, path: string, siteDomain?: strin
   db.update(pageCache).set({
     status: allFailed ? 'failed' : 'ready',
     etag,
+    title: pageTitle,
     error: allFailed ? providerErrors.join('; ') : null,
     generatedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

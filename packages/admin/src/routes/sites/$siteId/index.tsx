@@ -692,6 +692,8 @@ function ProvidersTab({ siteId }: { siteId: string }) {
       api(`/api/admin/sites/${siteId}/providers/${id}/test`, { method: 'POST' }),
   })
 
+  const [testingId, setTestingId] = useState<string | null>(null)
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) =>
       api(`/api/admin/sites/${siteId}/providers/${id}`, { method: 'DELETE' }),
@@ -862,8 +864,8 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                         {t('sites.notEnabled')}
                       </SecondaryButton>
                     )}
-                    <PrimaryButton onClick={() => testMutation.mutate(p.id)} disabled={testMutation.isPending}>
-                      {testMutation.isPending ? t('sites.testingProvider') : t('sites.test')}
+                    <PrimaryButton onClick={() => { setTestingId(p.id); testMutation.mutate(p.id, { onSettled: () => setTestingId(null) }) }} disabled={testingId !== null && testingId !== p.id}>
+                      {testingId === p.id ? t('sites.testingProvider') : t('sites.test')}
                     </PrimaryButton>
                     <SecondaryButton onClick={() => { setEditingId(p.id); setEditForm(p) }}>
                       {t('common.edit')}
@@ -885,8 +887,8 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                   </div>
                 </div>
               )}
-              {testMutation.isSuccess && <p className="text-green-600 text-sm mt-2">{t('sites.testSuccess')}</p>}
-              {testMutation.isError && <p className="text-red-500 text-sm mt-2">{t('common.error')}: {(testMutation.error as Error).message}</p>}
+              {testingId === p.id && testMutation.isSuccess && <p className="text-green-600 text-sm mt-2">{t('sites.testSuccess')}</p>}
+              {testingId === p.id && testMutation.isError && <p className="text-red-500 text-sm mt-2">{t('common.error')}: {(testMutation.error as Error).message}</p>}
             </div>
           ))}
         </div>
@@ -1348,6 +1350,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
   const [filterPath, setFilterPath] = useState('')
   const [debouncedFilterPath, setDebouncedFilterPath] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [filterProvider, setFilterProvider] = useState('')
   const [sortBy, setSortBy] = useState('updatedAt')
   const [sortOrder, setSortOrder] = useState('desc')
   const [undoEntries, setUndoEntries] = useState<Array<{ path: string; title: string | null }>>([])
@@ -1489,8 +1492,8 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
   })
 
   const { data: cacheStatus, isLoading, isError, error } = useQuery({
-    queryKey: ['site-cache', siteId, page, perPage, debouncedFilterPath, filterStatus, sortBy, sortOrder],
-    queryFn: () => api<any>(`/api/admin/sites/${siteId}/cache?page=${page}&limit=${perPage}&sortBy=${sortBy}&sortOrder=${sortOrder}${debouncedFilterPath ? `&path=${encodeURIComponent(debouncedFilterPath)}` : ''}${filterStatus ? `&status=${filterStatus}` : ''}`),
+    queryKey: ['site-cache', siteId, page, perPage, debouncedFilterPath, filterStatus, filterProvider, sortBy, sortOrder],
+    queryFn: () => api<any>(`/api/admin/sites/${siteId}/cache?page=${page}&limit=${perPage}&sortBy=${sortBy}&sortOrder=${sortOrder}${debouncedFilterPath ? `&path=${encodeURIComponent(debouncedFilterPath)}` : ''}${filterStatus ? `&status=${filterStatus}` : ''}${filterProvider ? `&provider=${encodeURIComponent(filterProvider)}` : ''}`),
     placeholderData: keepPreviousData,
   })
 
@@ -1549,7 +1552,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
       const res = await fetch(`/api/admin/sites/${siteId}/cache/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('token')}`, 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ paths }),
+        body: JSON.stringify(body),
       })
       const json = await res.json()
       if (!res.ok || json.code !== 0) throw new Error(json.message || 'Generate failed')
@@ -1703,11 +1706,9 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
           <PrimaryButton onClick={() => setGeneratePanel('selected')} disabled={selectedPaths.length === 0}>
             {t('content.generateSelected')}
           </PrimaryButton>
-          {pendingCount > 0 && (
-            <PrimaryButton onClick={() => setGeneratePanel('all')}>
-              {warmMutation.isPending ? t('common.loading') : `${t('sites.warmCache')} (${pendingCount})`}
-            </PrimaryButton>
-          )}
+          <PrimaryButton onClick={() => setGeneratePanel('all')}>
+            {warmMutation.isPending ? t('common.loading') : `${t('sites.warmCache')} (${pendingCount})`}
+          </PrimaryButton>
           <PrimaryButton onClick={() => setConfirmClear(true)} disabled={clearMutation.isPending}>
             {clearMutation.isPending ? t('common.loading') : t('sites.clearCache')}
           </PrimaryButton>
@@ -1959,7 +1960,6 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
       </div>
 
       {/* Table */}
-      {items.length > 0 && (
         <div className="overflow-x-auto mt-4">
           <table className="w-full text-left text-sm table-fixed">
               <thead>
@@ -1978,12 +1978,18 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                     </button>
                   </th>
                   <th className="pb-2 pr-3 w-[12%]">
-                      <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1) }} className="text-gray-500 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-800">
+                      <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1) }} className="text-gray-500 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-800 text-xs">
                         <option value="">{t('common.all')}</option>
                         <option value="ready">{t('content.statusGenerated')}</option>
                         <option value="pending">{t('content.statusPending')}</option>
                         <option value="failed">{t('content.statusFailed')}</option>
                         <option value="unfetched">{t('content.statusUnfetched')}</option>
+                      </select>
+                      <select value={filterProvider} onChange={(e) => { setFilterProvider(e.target.value); setPage(1) }} className="text-gray-500 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-800 text-xs ml-1">
+                        <option value="">{t('sites.allProviders')}</option>
+                        {(siteProviders || []).filter((p: any) => p.enabled).map((p: any) => (
+                          <option key={p.id} value={p.name}>{p.displayName || p.name}</option>
+                        ))}
                       </select>
                   </th>
                   <th className="pb-2 pr-3 w-[14%]">
@@ -1994,6 +2000,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                   <th className="pb-2 w-[12%]">{t('sites.actions')}</th>
                 </tr>
               </thead>
+            {items.length > 0 ? (
               <tbody>
                 {items.map((entry: any, i: number) => (
                   <Fragment key={i}>
@@ -2084,9 +2091,13 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                   </Fragment>
                 ))}
               </tbody>
+            ) : (
+              <tbody>
+                <tr><td colSpan={6} className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">{t('content.noSearchResults')}</td></tr>
+              </tbody>
+            )}
             </table>
           </div>
-        )}
         {(totalPages > 1 || items.length > 0) && (
           <div className="flex items-center justify-center gap-2 pt-3">
             <SecondaryButton onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1} className="!text-xs !px-2.5 !py-1">{t('common.previous')}</SecondaryButton>

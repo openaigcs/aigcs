@@ -649,6 +649,7 @@ router.get('/sites/:siteId/cache', async (c) => {
   const filterPath = c.req.query('path') || ''
   const filterQ = c.req.query('q') || ''
   const filterStatus = c.req.query('status') || ''
+  const filterProvider = c.req.query('provider') || ''
   const sortBy = c.req.query('sortBy') || 'updatedAt'
   const sortOrder = c.req.query('sortOrder') || 'desc'
 
@@ -664,6 +665,9 @@ router.get('/sites/:siteId/cache', async (c) => {
     conditions.push(sql`${pageCache.contentSource} IS NULL`)
   } else if (filterStatus) {
     conditions.push(eq(pageCache.status, filterStatus))
+  }
+  if (filterProvider) {
+    conditions.push(sql`EXISTS (SELECT 1 FROM comments WHERE site_id = ${pageCache.siteId} AND path = ${pageCache.path} AND provider_name = ${filterProvider})`)
   }
 
   const baseCondition = conditions.length === 1 ? conditions[0] : and(...conditions as [any, ...any[]])

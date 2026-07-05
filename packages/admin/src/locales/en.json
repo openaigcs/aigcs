@@ -272,6 +272,7 @@
     "rssWarmStarted": "Background generation started",
     "rssProvider": "Select AI Provider",
     "rssSelectAll": "Select All",
+    "allProviders": "All Providers",
     "rssConcurrency": "Concurrency",
     "rssInterval": "Interval (s)",
     "rssNotifyEmail": "Email notification when complete",

@@ -421,6 +421,7 @@
     "generatingHint": "Generating, please wait...",
     "deleteAll": "Delete All",
     "showDelete": "Show Delete",
+    "deleteComments": "Delete Comments",
     "deleteSelected": "Delete Selected",
     "deleteSuccess": "Deleted {{count}} entries",
     "confirmDeleteSingle": "Delete this entry?",

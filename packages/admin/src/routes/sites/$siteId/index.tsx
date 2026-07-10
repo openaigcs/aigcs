@@ -1759,9 +1759,6 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
           <PrimaryButton onClick={() => setGeneratePanel('all')}>
             {warmMutation.isPending ? t('common.loading') : t('sites.warmCache')}
           </PrimaryButton>
-          <PrimaryButton onClick={() => setConfirmClear(true)} disabled={clearMutation.isPending}>
-            {clearMutation.isPending ? t('common.loading') : t('sites.clearCache')}
-          </PrimaryButton>
           {deleteMode ? (
             <>
               <DangerButton onClick={() => setConfirmDeletePath('__all__')}>
@@ -1769,6 +1766,9 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
               </DangerButton>
               <DangerButton onClick={() => { if (selectedPaths.length > 0) setConfirmDeletePath('__batch__') }} disabled={selectedPaths.length === 0}>
                 {t('content.deleteSelected')}
+              </DangerButton>
+              <DangerButton onClick={() => setConfirmClear(true)} disabled={clearMutation.isPending}>
+                {clearMutation.isPending ? t('common.loading') : t('content.deleteComments')}
               </DangerButton>
               <SecondaryButton onClick={() => { setDeleteMode(false); setConfirmDeletePath(null) }}>
                 {t('common.cancel')}
@@ -1858,7 +1858,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
           <div className="mb-4 p-3 border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center gap-3">
             <span className="text-sm text-orange-700 dark:text-orange-300">{t('content.confirmClear')}</span>
             <DangerButton onClick={() => { clearMutation.mutate(); setConfirmClear(false) }} disabled={clearMutation.isPending}>
-              {clearMutation.isPending ? t('common.loading') : t('sites.clearCache')}
+              {clearMutation.isPending ? t('common.loading') : t('content.deleteComments')}
             </DangerButton>
             <SecondaryButton onClick={() => setConfirmClear(false)}>{t('common.cancel')}</SecondaryButton>
           </div>
@@ -2001,7 +2001,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
         {resultMsg && <p className={`mb-2 ${resultMsg.startsWith(t('common.error')) ? 'text-red-500' : 'text-green-600'}`}>{resultMsg}</p>}
         {warmMutation.isSuccess && <p className="text-green-600 mb-2">{t('sites.warmStarted')}</p>}
         {warmMutation.isError && <p className="text-red-500 mb-2">{t('common.error')}: {(warmMutation.error as Error).message}</p>}
-        {clearMutation.isSuccess && <p className="text-green-600 mb-2">{t('sites.clearCache')}!</p>}
+        {clearMutation.isSuccess && <p className="text-green-600 mb-2">{t('content.deleteSuccess', { count: 0 })}</p>}
         {clearMutation.isError && <p className="text-red-500 mb-2">{t('common.error')}: {(clearMutation.error as Error).message}</p>}
       </Card>
 

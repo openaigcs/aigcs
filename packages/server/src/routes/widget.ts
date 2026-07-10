@@ -860,18 +860,26 @@ async function generateComments(siteId: string, path: string, siteDomain?: strin
         ALLOWED_ATTR: ['href', 'target', 'rel'],
       })
       const contentMd5 = md5(cleanContent)
-      db.insert(comments).values({
-        id: commentId,
-        siteId,
-        path,
-        providerName: (provider as any).displayName,
-        model: result.model,
-        authorName: (provider as any).displayName,
-        authorAvatar: emptyContent ? '#empty-content' : '',
-        content: cleanContent,
-        contentMd5,
-        generatedAt: new Date().toISOString(),
-      }).run()
+      raw.exec('BEGIN')
+      try {
+        raw.prepare('DELETE FROM comments WHERE site_id = ? AND path = ? AND provider_name = ?').run(siteId, path, (provider as any).displayName)
+        db.insert(comments).values({
+          id: commentId,
+          siteId,
+          path,
+          providerName: (provider as any).displayName,
+          model: result.model,
+          authorName: (provider as any).displayName,
+          authorAvatar: emptyContent ? '#empty-content' : '',
+          content: cleanContent,
+          contentMd5,
+          generatedAt: new Date().toISOString(),
+        }).run()
+        raw.exec('COMMIT')
+      } catch (err) {
+        raw.exec('ROLLBACK')
+        throw err
+      }
 
       await runHook('afterGenerate', {
         siteId,
@@ -902,8 +910,9 @@ async function generateComments(siteId: string, path: string, siteDomain?: strin
 
   const etag = md5(`${siteId}:${path}:${Date.now()}`)
   const allFailed = providerSuccess === 0
+  const hasComments = !allFailed || (raw.prepare('SELECT COUNT(*) as cnt FROM comments WHERE site_id = ? AND path = ?').get(siteId, path) as any)?.cnt > 0
   db.update(pageCache).set({
-    status: allFailed ? 'failed' : 'ready',
+    status: hasComments ? 'ready' : 'failed',
     etag,
     title: pageTitle,
     error: allFailed ? providerErrors.join('; ') : null,

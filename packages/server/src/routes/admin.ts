@@ -725,9 +725,10 @@ router.get('/sites/:siteId/cache', async (c) => {
       }
       for (const path of paths) {
         const existing = pathComments.get(path) || new Set()
+        const existingLower = new Set([...existing].map((n: string) => n.toLowerCase()))
         const status: Record<string, string> = {}
         for (const p of enabledProviders) {
-          status[p.displayName] = existing.has(p.displayName) ? 'ready' : 'missing'
+          status[p.displayName] = existingLower.has(p.displayName.toLowerCase()) ? 'ready' : 'missing'
         }
         providerStatusMap[path] = status
       }

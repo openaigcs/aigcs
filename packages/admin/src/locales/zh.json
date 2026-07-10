@@ -424,6 +424,7 @@
     "generatingHint": "正在生成，请稍候...",
     "deleteAll": "删除全部",
     "showDelete": "显示删除按钮",
+    "deleteComments": "删除评论",
     "deleteSelected": "删除选中",
     "deleteSuccess": "成功删除 {{count}} 条",
     "confirmDeleteSingle": "确定删除此条目？",

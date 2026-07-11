@@ -12,10 +12,23 @@ import type { FetchContext, SubmitContext } from '@aigcs/core'
 import { runHook } from '../plugins/registry.js'
 import { extractPageContent, extractPageTitle } from '../lib/extract-content.js'
 import { fireWebhook } from '../services/webhook.js'
+import jwt from 'jsonwebtoken'
+import { getJwtSecret } from '../middleware/auth.js'
 
 const purify = DOMPurify(new JSDOM('').window)
 
 const reactionRateLimits = new Map<string, number[]>()
+
+// Periodically clean stale entries every 10 minutes
+setInterval(() => {
+  const now = Date.now()
+  const cutoff = now - 60 * 60 * 1000
+  for (const [key, times] of reactionRateLimits) {
+    const filtered = times.filter(t => t >= cutoff)
+    if (filtered.length === 0) reactionRateLimits.delete(key)
+    else reactionRateLimits.set(key, filtered)
+  }
+}, 10 * 60 * 1000)
 
 import { getProviderAvatar } from '../providers/avatars.js'
 
@@ -29,29 +42,37 @@ function assertWidgetOrigin(c: any, siteDomain: string): void {
   const origin = c.req.header('Origin')
   const referer = c.req.header('Referer')
   const source = origin || referer
-  if (source) {
-    let sourceHost: string | undefined
-    try {
-      sourceHost = new URL(source).hostname
-    } catch {
-      console.warn(`[widget] Unable to parse Origin/Referer: "${source}" — skipping origin check`)
-      return
+
+  const isWriteMethod = ['POST', 'PUT', 'DELETE'].includes(c.req.method.toUpperCase())
+
+  if (!source) {
+    if (isWriteMethod) {
+      throw new HTTPException(403, { message: 'Origin or Referer header is required for write operations' })
     }
-    const siteHost = new URL(`https://${siteDomain}`).hostname
-    if (sourceHost === siteHost) return
-
-    // Also allow if origin is in the global allowed_origins (covers local dev, etc.)
-    try {
-      const raw = getRawDb() as any
-      const config = raw.prepare?.("SELECT allowed_origins FROM system_config WHERE id = 'global'").get() as { allowed_origins: string | null } | undefined
-      if (config?.allowed_origins) {
-        const allowed = JSON.parse(config.allowed_origins) as string[]
-        if (Array.isArray(allowed) && (allowed.includes('*') || allowed.includes(source))) return
-      }
-    } catch {}
-
-    throw new HTTPException(403, { message: 'Origin does not match site domain' })
+    return
   }
+
+  let sourceHost: string | undefined
+  try {
+    sourceHost = new URL(source).hostname
+  } catch {
+    throw new HTTPException(400, { message: 'Invalid Origin or Referer header' })
+  }
+
+  const siteHost = new URL(`https://${siteDomain}`).hostname
+  if (sourceHost === siteHost) return
+
+  // Also allow if origin is in the global allowed_origins (covers local dev, etc.)
+  try {
+    const raw = getRawDb() as any
+    const config = raw.prepare?.("SELECT allowed_origins FROM system_config WHERE id = 'global'").get() as { allowed_origins: string | null } | undefined
+    if (config?.allowed_origins) {
+      const allowed = JSON.parse(config.allowed_origins) as string[]
+      if (Array.isArray(allowed) && (allowed.includes('*') || allowed.includes(source) || allowed.includes(sourceHost) || allowed.some(a => a.includes(sourceHost!)))) return
+    }
+  } catch {}
+
+  throw new HTTPException(403, { message: 'Origin does not match site domain' })
 }
 
 // GET /api/widget/captcha/config — public captcha config for widget forms
@@ -88,8 +109,7 @@ router.get('/:domain/comments', async (c) => {
   let site = db.select().from(sites).where(eq(sites.domain, domain)).get()
   if (!site) {
     // Fallback: match site whose domain starts with the requested hostname
-    // Covers cases like widget sends "127.0.0.1" but site was created as "127.0.0.1:1313"
-    site = db.select().from(sites).where(sql`${sites.domain} LIKE ${domain + '%'}`).get()
+    site = db.select().from(sites).where(sql`${sites.domain} LIKE ${domain + ':%'} OR ${sites.domain} = ${domain}`).get()
   }
   if (!site) {
     throw new HTTPException(404, { message: 'Site not found' })
@@ -117,14 +137,25 @@ router.get('/:domain/comments', async (c) => {
   const now = new Date().toISOString()
 
   if (!pc) {
-    db.insert(pageCache).values({ id: cacheHash, siteId: site.id, path, status: 'pending', createdAt: now, updatedAt: now }).run()
-    pc = { id: cacheHash, siteId: site.id, path, status: 'pending', createdAt: now, updatedAt: now, lockedAt: null, etag: null, generatedAt: null, error: null }
+    db.insert(pageCache).values({ id: cacheHash, siteId: site.id, path, status: 'pending', createdAt: now, updatedAt: now }).onConflictDoNothing().run()
+    pc = db.select().from(pageCache).where(eq(pageCache.id, cacheHash)).get()
+    if (!pc) {
+      pc = { id: cacheHash, siteId: site.id, path, status: 'pending', createdAt: now, updatedAt: now, lockedAt: null, etag: null, generatedAt: null, error: null }
+    }
+  }
+
+  // Handle stuck generating status (timeout after 5 minutes)
+  if (pc.status === 'generating' && pc.lockedAt) {
+    if (Date.now() - new Date(pc.lockedAt).getTime() > 5 * 60 * 1000) {
+      raw.prepare("UPDATE page_cache SET status = 'pending', locked_at = NULL WHERE id = ?").run(cacheHash)
+      pc.status = 'pending'
+    }
   }
 
   if (finalAutoGenerate) {
     raw.prepare(
-      "UPDATE page_cache SET status = 'generating', locked_at = datetime('now'), updated_at = ? WHERE id = ? AND status = 'pending'"
-    ).run(now, cacheHash)
+      "UPDATE page_cache SET status = 'generating', locked_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'"
+    ).run(now, now, cacheHash)
 
     const updated = raw.prepare('SELECT status FROM page_cache WHERE id = ?').get(cacheHash) as { status: string } | undefined
 
@@ -172,7 +203,7 @@ router.get('/:domain/comments', async (c) => {
     .where(and(eq(comments.siteId, site.id), eq(comments.path, path)))
     .all()
 
-  const visitorHash = visitorId ? md5(`${visitorId}:${ip}`) : md5(ip)
+  const visitorHash = visitorId ? md5(visitorId) : md5(ip)
 
   const providerRows = db
     .select()
@@ -189,20 +220,24 @@ router.get('/:domain/comments', async (c) => {
     }
   }
 
-  const commentDTOs = (commentList as any[]).map((c: any) => {
-    const reactionRows = raw.prepare(
-      'SELECT cr.reaction_type, cr.count FROM comment_reactions cr JOIN reaction_types rt ON cr.reaction_type = rt.id WHERE cr.comment_id = ? AND rt.enabled = 1',
-    ).all(c.id) as Array<{ reaction_type: string; count: number }>
-
-    const reactionMap: Record<string, number> = {}
+  const commentIds = (commentList as any[]).map((c: any) => c.id)
+  const commentReactionsMap = new Map<string, Record<string, number>>()
+  const commentVotesMap = new Map<string, string[]>()
+  if (commentIds.length > 0) {
+    const placeholders = commentIds.map(() => '?').join(',')
+    const reactionRows = raw.prepare(`SELECT cr.comment_id, cr.reaction_type, cr.count FROM comment_reactions cr JOIN reaction_types rt ON cr.reaction_type = rt.id WHERE cr.comment_id IN (${placeholders}) AND rt.enabled = 1`).all(...commentIds) as Array<{ comment_id: string; reaction_type: string; count: number }>
     for (const r of reactionRows) {
-      reactionMap[r.reaction_type] = r.count
+      if (!commentReactionsMap.has(r.comment_id)) commentReactionsMap.set(r.comment_id, {})
+      commentReactionsMap.get(r.comment_id)![r.reaction_type] = r.count
     }
+    const voteRows = raw.prepare(`SELECT comment_id, reaction_type FROM reaction_votes WHERE comment_id IN (${placeholders}) AND visitor_hash = ?`).all(...commentIds, visitorHash) as Array<{ comment_id: string; reaction_type: string }>
+    for (const v of voteRows) {
+      if (!commentVotesMap.has(v.comment_id)) commentVotesMap.set(v.comment_id, [])
+      commentVotesMap.get(v.comment_id)!.push(v.reaction_type)
+    }
+  }
 
-    const votes = raw.prepare(
-      'SELECT reaction_type FROM reaction_votes WHERE comment_id = ? AND visitor_hash = ?',
-    ).all(c.id, visitorHash) as Array<{ reaction_type: string }>
-
+  const commentDTOs = (commentList as any[]).map((c: any) => {
     return {
       id: c.id,
       providerName: c.providerName,
@@ -213,8 +248,8 @@ router.get('/:domain/comments', async (c) => {
       content: c.content,
       generatedAt: c.generatedAt,
       showModel: true,
-      reactions: reactionMap,
-      userVoted: votes.map(v => v.reaction_type),
+      reactions: commentReactionsMap.get(c.id) || {},
+      userVoted: commentVotesMap.get(c.id) || [],
     }
   })
 
@@ -255,17 +290,26 @@ router.get('/:domain/comments', async (c) => {
     return `${proto}//${reqUrl.host}/api/avatar-proxy?url=${encodeURIComponent(url)}`
   }
 
-  const enrichedVisitorComments = (fetchCtx.visitorComments || []).map((vc: any) => {
-    const reactionRows = raw.prepare(
-      'SELECT cr.reaction_type, cr.count FROM comment_reactions cr JOIN reaction_types rt ON cr.reaction_type = rt.id WHERE cr.comment_id = ? AND rt.enabled = 1',
-    ).all(vc.id) as Array<{ reaction_type: string; count: number }>
-    const reactionMap: Record<string, number> = {}
+  const visitorCommentIds = (fetchCtx.visitorComments || []).map((vc: any) => vc.id)
+  const vCommentReactionsMap = new Map<string, Record<string, number>>()
+  const vCommentVotesMap = new Map<string, string[]>()
+  if (visitorCommentIds.length > 0) {
+    const placeholders = visitorCommentIds.map(() => '?').join(',')
+    const reactionRows = raw.prepare(`SELECT cr.comment_id, cr.reaction_type, cr.count FROM comment_reactions cr JOIN reaction_types rt ON cr.reaction_type = rt.id WHERE cr.comment_id IN (${placeholders}) AND rt.enabled = 1`).all(...visitorCommentIds) as Array<{ comment_id: string; reaction_type: string; count: number }>
     for (const r of reactionRows) {
-      reactionMap[r.reaction_type] = r.count
+      if (!vCommentReactionsMap.has(r.comment_id)) vCommentReactionsMap.set(r.comment_id, {})
+      vCommentReactionsMap.get(r.comment_id)![r.reaction_type] = r.count
     }
-    const votes = raw.prepare(
-      'SELECT reaction_type FROM reaction_votes WHERE comment_id = ? AND visitor_hash = ?',
-    ).all(vc.id, visitorHash) as Array<{ reaction_type: string }>
+    const voteRows = raw.prepare(`SELECT comment_id, reaction_type FROM reaction_votes WHERE comment_id IN (${placeholders}) AND visitor_hash = ?`).all(...visitorCommentIds, visitorHash) as Array<{ comment_id: string; reaction_type: string }>
+    for (const v of voteRows) {
+      if (!vCommentVotesMap.has(v.comment_id)) vCommentVotesMap.set(v.comment_id, [])
+      vCommentVotesMap.get(v.comment_id)!.push(v.reaction_type)
+    }
+  }
+
+  const enrichedVisitorComments = (fetchCtx.visitorComments || []).map((vc: any) => {
+    const reactionMap = vCommentReactionsMap.get(vc.id) || {}
+    const votes = vCommentVotesMap.get(vc.id) || []
     let avatar = vc.avatar || ''
     if (avatarMode === 'mravatar' && mravatarUrl && vc.source === 'fedi' && vc.authorFediId) {
       const acct = vc.authorFediId.startsWith('@') ? vc.authorFediId.slice(1) : vc.authorFediId
@@ -287,7 +331,8 @@ router.get('/:domain/comments', async (c) => {
       ...vc,
       avatar,
       reactions: reactionMap,
-      userVoted: votes.map(v => v.reaction_type),
+      userVoted: votes,
+      visitorId: (visitorId && vc.visitorId === visitorId) ? vc.visitorId : '',
     }
   })
 
@@ -327,7 +372,7 @@ router.post('/:domain/react', async (c) => {
   if (!site) throw new HTTPException(404, { message: 'Site not found' })
   assertWidgetOrigin(c, (site as any).domain)
   const raw = getRawDb() as import('better-sqlite3').Database
-  const visitorHash = body.visitorId ? md5(`${body.visitorId}:${ip}`) : md5(ip)
+  const visitorHash = body.visitorId ? md5(body.visitorId) : md5(ip)
 
   // Verify commentId belongs to this site
   const commentOwner = raw.prepare(
@@ -347,16 +392,6 @@ router.post('/:domain/react', async (c) => {
   }
   recent.push(now)
   reactionRateLimits.set(visitorKey, recent)
-
-  // Periodically clean stale entries
-  if (reactionRateLimits.size > 10000) {
-    const cutoff = now - windowMs
-    for (const [key, times] of reactionRateLimits) {
-      const filtered = times.filter(t => now - t < cutoff)
-      if (filtered.length === 0) reactionRateLimits.delete(key)
-      else reactionRateLimits.set(key, filtered)
-    }
-  }
 
   const reactionType = db.select().from(reactionTypes).where(eq(reactionTypes.id, body.reaction)).get()
   if (!reactionType) {
@@ -459,6 +494,18 @@ router.post('/:domain/comment', async (c) => {
   }, submitPlugin)
 
   if (submitCtx.result) {
+    if (submitCtx.result.id && !submitCtx.result.error && !submitCtx.result.requirePin && !submitCtx.result.pinError) {
+      const raw = getRawDb() as import('better-sqlite3').Database
+      const pluginRow = raw.prepare("SELECT settings FROM plugins WHERE name = ?").get(submitPlugin) as any
+      const settings = pluginRow ? (typeof pluginRow.settings === 'string' ? JSON.parse(pluginRow.settings) : (pluginRow.settings || {})) : {}
+      const editWindow = parseInt(settings.edit_window_minutes || '3', 10)
+      const token = jwt.sign(
+        { commentId: submitCtx.result.id, visitorId: body.visitorId },
+        getJwtSecret(),
+        { expiresIn: `${editWindow}m` }
+      )
+      submitCtx.result.editToken = token
+    }
     return c.json({ code: 0, data: submitCtx.result })
   }
 
@@ -469,7 +516,7 @@ router.post('/:domain/comment', async (c) => {
 router.put('/:domain/comment/:id', async (c) => {
   const domain = c.req.param('domain')
   const id = c.req.param('id')
-  const body = await c.req.json() as { content: string; visitorId?: string }
+  const body = await c.req.json() as { content: string; editToken?: string; visitorId?: string }
   const raw = getRawDb() as import('better-sqlite3').Database
   const site = getDb().select().from(sites).where(eq(sites.domain, domain)).get() as any
   if (!site) throw new HTTPException(404, { message: 'Site not found' })
@@ -478,9 +525,20 @@ router.put('/:domain/comment/:id', async (c) => {
   const comment = raw.prepare("SELECT * FROM visitor_comments WHERE id = ? AND site_id = ?").get(id, site.id) as any
   if (!comment) throw new HTTPException(404, { message: 'Comment not found' })
 
-  // Check visitorId ownership
-  if (!comment.visitor_id || comment.visitor_id !== (body.visitorId || '')) {
-    throw new HTTPException(403, { message: '无权编辑此评论' })
+  // Verify editToken
+  if (!body.editToken) {
+    throw new HTTPException(403, { message: '缺少编辑凭证' })
+  }
+  try {
+    const payload = jwt.verify(body.editToken, getJwtSecret()) as { commentId: string; visitorId: string }
+    if (payload.commentId !== id) {
+      throw new HTTPException(403, { message: '编辑凭证不匹配' })
+    }
+    if (comment.visitor_id && comment.visitor_id !== payload.visitorId) {
+      throw new HTTPException(403, { message: '无权编辑此评论' })
+    }
+  } catch {
+    throw new HTTPException(403, { message: '编辑凭证无效或已过期' })
   }
 
   // Check time window
@@ -611,7 +669,7 @@ const usePluginSmtp = smtpMode === 'custom' && !!(pSettings.smtp_host && pSettin
         }
       }
 
-      if (usePluginSmtp) {
+    if (usePluginSmtp) {
       const nodemailer = await import('nodemailer')
       const transporter = nodemailer.default.createTransport({
         host: pSettings.smtp_host,
@@ -622,15 +680,20 @@ const usePluginSmtp = smtpMode === 'custom' && !!(pSettings.smtp_host && pSettin
           pass: pSettings.smtp_pass || '',
         },
       })
-      await transporter.sendMail({
+      transporter.sendMail({
         from: `"${pSettings.smtp_from_name || 'AIGCS Notify'}" <${pSettings.smtp_from_email || 'noreply@aigcs.local'}>`,
         to: body.email,
         subject: '验证码 - 删除评论',
         html: emailHtml,
+      }).catch(err => {
+        console.error('[widget] Failed to send delete verification email via plugin SMTP:', err)
       })
     } else {
-      const { sendEmail } = await import('../services/email.js')
-      await sendEmail(body.email, '验证码 - 删除评论', emailHtml)
+      import('../services/email.js').then(({ sendEmail }) => {
+        sendEmail(body.email, '验证码 - 删除评论', emailHtml).catch(err => {
+          console.error('[widget] Failed to send delete verification email:', err)
+        })
+      })
     }
   } catch (err) {
     console.error('[widget] Failed to send verification email:', err)

@@ -1,8 +1,9 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
+import { sites } from './sites.js'
 
 export const mastodonBindings = sqliteTable('mastodon_bindings', {
   id: text('id').primaryKey(),
-  siteId: text('site_id').notNull(),
+  siteId: text('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   slug: text('slug').notNull(),
   instanceType: text('instance_type').notNull().default('mastodon'),
   instanceUrl: text('instance_url').notNull(),
@@ -29,4 +30,6 @@ export const mastodonCachedComments = sqliteTable('mastodon_cached_comments', {
   favouritesCount: integer('favourites_count').notNull().default(0),
   parentId: text('parent_id').notNull().default(''),
   hidden: integer('hidden').notNull().default(0),
-})
+}, (table) => ({
+  bindingIdx: index('idx_mastodon_cached_comments_binding').on(table.bindingId),
+}))

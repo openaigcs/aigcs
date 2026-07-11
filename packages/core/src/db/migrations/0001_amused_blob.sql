@@ -1,0 +1,1 @@
+CREATE INDEX `idx_verification_codes_lookup` ON `verification_codes` (`email`,`purpose`,`created_at`);

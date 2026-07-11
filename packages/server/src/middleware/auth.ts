@@ -6,10 +6,12 @@ import { users } from '@aigcs/core'
 import { createHash, timingSafeEqual } from 'node:crypto'
 import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production'
-
 export function getJwtSecret(): string {
-  return process.env.JWT_SECRET || 'change-me-in-production'
+  const secret = process.env.JWT_SECRET
+  if (!secret && process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be set in production')
+  }
+  return secret || 'change-me-in-production'
 }
 
 export interface AuthUser {
@@ -54,6 +56,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
   const db = getDb()
   const prefix = token.slice(0, 8)
   const hashed = hashToken(token)
+  const nowStr = new Date().toISOString()
 
   const result = db
     .select({ userId: users.id, userRole: users.role, userEmail: users.email })
@@ -64,7 +67,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
         WHERE api_tokens.user_id = users.id
         AND api_tokens.token_hash = ${hashed}
         AND api_tokens.token_prefix = ${prefix}
-        AND (api_tokens.expires_at IS NULL OR api_tokens.expires_at > datetime('now'))
+        AND (api_tokens.expires_at IS NULL OR api_tokens.expires_at > ${nowStr})
       )`,
     )
     .get()
@@ -72,7 +75,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
   if (result) {
     // Update last_used_at
     db.run(
-      sql`UPDATE api_tokens SET last_used_at = datetime('now') WHERE token_hash = ${hashed}`,
+      sql`UPDATE api_tokens SET last_used_at = ${nowStr} WHERE token_hash = ${hashed}`,
     )
     c.set('user', { id: result.userId, email: result.userEmail, role: result.userRole })
     c.set('userId', result.userId)

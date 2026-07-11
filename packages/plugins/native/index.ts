@@ -161,7 +161,11 @@ formPosition: getPluginSetting('formPosition') || 'top',
       }
 
       // Admin PIN check
-      if (adminPin && adminEmails.length > 0 && adminEmails.includes(ctx.authorEmail.toLowerCase())) {
+      if (adminEmails.length > 0 && adminEmails.includes(ctx.authorEmail.toLowerCase())) {
+        if (!adminPin) {
+          ctx.result = { error: '管理员邮箱已被保护，但系统未配置 PIN 码，暂禁止使用此邮箱发表评论。' }
+          return ctx
+        }
         const submittedPin = ctx.pin as string | undefined
         if (!submittedPin) {
           ctx.result = { requirePin: true }
@@ -286,18 +290,19 @@ formPosition: getPluginSetting('formPosition') || 'top',
 
                 const smtpMode = settings.smtp_mode || 'global'
                 if (smtpMode === 'custom' && hasSmtpConfig(settings)) {
-                  const { renderEmail } = await import('../../../packages/server/src/email-templates/index.js')
-                  await sendMailWithConfig(settings, notifyEmail,
-                    `[AIGCS] 新评论 - ${ctx.authorName}`,
-                    renderEmail({
-                      template: 'new-comment',
-                      title: `New Comment from ${ctx.authorName}`,
-                      data: { authorName: ctx.authorName, domain: siteDomain, path: ctx.path, pageUrl, content: ctx.content },
-                      adminUrl,
-                      unsubscribeUrl,
-                      unsubscribeText,
-                    }),
-                  )
+                  import('../../../packages/server/src/email-templates/index.js').then(({ renderEmail }) => {
+                    sendMailWithConfig(settings, notifyEmail,
+                      `[AIGCS] 新评论 - ${ctx.authorName}`,
+                      renderEmail({
+                        template: 'new-comment',
+                        title: `New Comment from ${ctx.authorName}`,
+                        data: { authorName: ctx.authorName, domain: siteDomain, path: ctx.path, pageUrl, content: ctx.content },
+                        adminUrl,
+                        unsubscribeUrl,
+                        unsubscribeText,
+                      }),
+                    ).catch(err => console.warn('[plugin:native] Failed to send custom SMTP notification:', err))
+                  })
                 } else {
                   const { sendEmail } = await import('../../../packages/server/src/services/email.js')
                   const { renderEmail } = await import('../../../packages/server/src/email-templates/index.js')
@@ -363,16 +368,17 @@ formPosition: getPluginSetting('formPosition') || 'top',
                 const smtpMode = settings.smtp_mode || 'global'
 
                 if (smtpMode === 'custom' && hasSmtpConfig(settings)) {
-                  await sendMailWithConfig(settings, parentRow.author_email,
+                  sendMailWithConfig(settings, parentRow.author_email,
                     `[AIGCS] ${ctx.authorName} 回复了您的评论`,
                     emailBody,
-                  )
+                  ).catch(err => console.warn('[plugin:native] Failed to send custom SMTP reply notification:', err))
                 } else {
-                  const { sendEmail } = await import('../../../packages/server/src/services/email.js')
-                  sendEmail(parentRow.author_email,
-                    `[AIGCS] ${ctx.authorName} replied to your comment`,
-                    emailBody,
-                  )
+                  import('../../../packages/server/src/services/email.js').then(({ sendEmail }) => {
+                    sendEmail(parentRow.author_email,
+                      `[AIGCS] ${ctx.authorName} replied to your comment`,
+                      emailBody,
+                    ).catch(err => console.warn('[plugin:native] Failed to send global SMTP reply notification:', err))
+                  })
                 }
               }
             }

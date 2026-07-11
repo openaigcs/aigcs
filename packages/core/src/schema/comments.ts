@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, uniqueIndex, index } from 'drizzle-orm/sqlite-core'
 import { sites } from './sites.js'
 
 export const comments = sqliteTable('comments', {
@@ -14,7 +14,7 @@ export const comments = sqliteTable('comments', {
   generatedAt: text('generated_at').notNull().$default(() => new Date().toISOString()),
 }, (table) => ({
   uniq: uniqueIndex('idx_comments_unique').on(table.siteId, table.path, table.providerName),
-  lookup: uniqueIndex('idx_comments_lookup').on(table.siteId, table.path),
+  lookup: index('idx_comments_lookup').on(table.siteId, table.path),
 }))
 
 export const pageCache = sqliteTable('page_cache', {

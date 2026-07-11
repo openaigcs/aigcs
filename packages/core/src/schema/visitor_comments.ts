@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
 import { sites } from './sites.js'
 
 export const visitorComments = sqliteTable('visitor_comments', {
@@ -17,5 +17,7 @@ export const visitorComments = sqliteTable('visitor_comments', {
   notifyOnReply: integer('notify_on_reply').notNull().default(0),
   editedAt: text('edited_at'),
   createdAt: text('created_at').notNull().$default(() => new Date().toISOString()),
-})
+}, (table) => ({
+  lookupIdx: index('idx_visitor_comments_lookup').on(table.siteId, table.path, table.status, table.createdAt),
+}))
 

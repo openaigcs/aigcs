@@ -5,7 +5,8 @@ import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { HTTPException } from 'hono/http-exception'
-import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { readFile, mkdir, writeFile, readdir, rm } from 'node:fs/promises'
 import { join, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
@@ -19,14 +20,25 @@ import { unsubscribeRouter } from './routes/unsubscribe.js'
 import { getAllPlugins, runHook } from './plugins/registry.js'
 import { getDb, getRawDb } from './db/index.js'
 
+let cachedAllowedOrigins: string[] = []
+let allowedOriginsLastFetched = 0
+
 async function getAllowedOrigins(): Promise<string[]> {
+  const now = Date.now()
+  if (now - allowedOriginsLastFetched < 60000 && cachedAllowedOrigins.length > 0) {
+    return cachedAllowedOrigins
+  }
   try {
     const { getRawDb } = await import('./db/index.js')
     const raw = getRawDb() as any
     const config = raw.prepare?.("SELECT allowed_origins FROM system_config WHERE id = 'global'").get() as { allowed_origins: string | null } | undefined
     if (config?.allowed_origins) {
       const parsed = JSON.parse(config.allowed_origins)
-      if (Array.isArray(parsed)) return parsed
+      if (Array.isArray(parsed)) {
+        cachedAllowedOrigins = parsed
+        allowedOriginsLastFetched = now
+        return parsed
+      }
     }
   } catch {}
   return []
@@ -106,6 +118,7 @@ export async function createApp() {
     app.get('/api/avatar-proxy', async (c) => {
     const url = c.req.query('url')
     if (!url) return c.text('Missing url', 400)
+    if (!url.startsWith('http://') && !url.startsWith('https://')) return c.text('Invalid protocol', 400)
     try {
       new URL(url)
     } catch {
@@ -114,33 +127,37 @@ export async function createApp() {
     const origin = c.req.header('origin') || c.req.header('referer') || '*'
     const hash = createHash('md5').update(url).digest('hex')
     const dataDir = join(process.cwd(), 'data', 'avatars')
-    mkdirSync(dataDir, { recursive: true })
+    await mkdir(dataDir, { recursive: true }).catch(() => {})
 
     // Enforce cache limit: max ~10000 files
     const MAX_CACHE = 10000
     let entries: string[] = []
-    try { entries = readdirSync(dataDir) } catch {}
+    try { entries = await readdir(dataDir) } catch {}
     if (entries.length >= MAX_CACHE) {
-      entries.sort().slice(0, Math.floor(MAX_CACHE * 0.2)).forEach(f => {
-        try { rmSync(join(dataDir, f)) } catch {}
+      Promise.resolve().then(async () => {
+        entries.sort().slice(0, Math.floor(MAX_CACHE * 0.2)).forEach(async f => {
+          try { await rm(join(dataDir, f)) } catch {}
+        })
       })
     }
 
     const cachePath = join(dataDir, hash)
     if (existsSync(cachePath)) {
-      const data = readFileSync(cachePath)
-      return c.newResponse(data, 200, {
-        'Content-Type': 'image/webp',
-        'Cache-Control': 'public, max-age=31536000',
-        'Access-Control-Allow-Origin': origin,
-      })
+      try {
+        const data = await readFile(cachePath)
+        return c.newResponse(data, 200, {
+          'Content-Type': 'image/webp',
+          'Cache-Control': 'public, max-age=31536000',
+          'Access-Control-Allow-Origin': origin,
+        })
+      } catch {}
     }
     try {
       const { safeFetch } = await import('./services/safe-fetch.js')
       const res = await safeFetch(url, { timeout: 10000 })
       if (!res.ok) return c.text('Failed to fetch', 502)
       const buffer = Buffer.from(await res.arrayBuffer())
-      writeFileSync(cachePath, buffer)
+      await writeFile(cachePath, buffer).catch(() => {})
       return c.newResponse(buffer, 200, {
         'Content-Type': res.headers.get('content-type') || 'image/webp',
         'Cache-Control': 'public, max-age=31536000',

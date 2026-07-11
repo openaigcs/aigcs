@@ -1,4 +1,4 @@
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, index } from 'drizzle-orm/sqlite-core'
 
 export const verificationCodes = sqliteTable('verification_codes', {
   id: text('id').primaryKey(),
@@ -8,4 +8,7 @@ export const verificationCodes = sqliteTable('verification_codes', {
   targetId: text('target_id').notNull().default(''),
   expiresAt: text('expires_at').notNull(),
   createdAt: text('created_at').notNull().$default(() => new Date().toISOString()),
-})
+}, (table) => ({
+  verifIdx: index('idx_verification_codes_lookup').on(table.email, table.purpose, table.createdAt),
+}))
+

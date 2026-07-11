@@ -9,6 +9,7 @@ import { getAdapter, extractAcct } from './adapters.js'
 import { mastodonBindings, mastodonCachedComments, sites, pageCache } from '@aigcs/core'
 
 let _rawDb: any = null
+const activeFetches = new Map<string, Promise<void>>()
 
 async function detectSoftware(instanceUrl: string): Promise<string> {
   try {
@@ -152,9 +153,12 @@ const plugin: Plugin = {
             Object.assign(headers, adapter.authHeader(token))
             const statusRes = await fetchFedi(adapter.statusUrl(body.instanceUrl, resolvedId), headers)
             const authorAcct = adapter.parseAccount(statusRes).acct
-            const domain = fediAuthor.includes('@') ? fediAuthor.split('@')[1] : body.instanceUrl.replace(/^https?:\/\//, '')
-            const fullAcct = authorAcct.includes('@') ? authorAcct : `${authorAcct}@${domain}`
-            if (fullAcct !== fediAuthor) throw new HTTPException(403, { message: `Status author ${fullAcct} does not match authorized account ${fediAuthor}` })
+            const cleanAuthor = authorAcct.replace(/^@+/, '')
+            const cleanFediAuthor = fediAuthor.replace(/^@+/, '')
+            const parts = cleanFediAuthor.split('@')
+            const domain = parts.length > 1 ? parts[parts.length - 1] : body.instanceUrl.replace(/^https?:\/\//, '')
+            const fullAcct = cleanAuthor.includes('@') ? cleanAuthor : `${cleanAuthor}@${domain}`
+            if (fullAcct.toLowerCase() !== cleanFediAuthor.toLowerCase()) throw new HTTPException(403, { message: `Status author ${fullAcct} does not match authorized account ${fediAuthor}` })
           } catch (err: any) {
             if (err instanceof HTTPException) throw err
             throw new HTTPException(502, { message: `Failed to verify status: ${err.message}` })
@@ -253,9 +257,12 @@ z.object({
               try {
                 const statusRes = await fetchFedi(adapter.statusUrl(instanceUrl, statusId), headers)
                 const authorAcct = adapter.parseAccount(statusRes).acct
-                const domain = fediAuthor.includes('@') ? fediAuthor.split('@')[1] : instanceUrl.replace(/^https?:\/\//, '')
-                const fullAcct = authorAcct.includes('@') ? authorAcct : `${authorAcct}@${domain}`
-                if (fullAcct !== fediAuthor) {
+                const cleanAuthor = authorAcct.replace(/^@+/, '')
+                const cleanFediAuthor = fediAuthor.replace(/^@+/, '')
+                const parts = cleanFediAuthor.split('@')
+                const domain = parts.length > 1 ? parts[parts.length - 1] : instanceUrl.replace(/^https?:\/\//, '')
+                const fullAcct = cleanAuthor.includes('@') ? cleanAuthor : `${cleanAuthor}@${domain}`
+                if (fullAcct.toLowerCase() !== cleanFediAuthor.toLowerCase()) {
                   failed.push({ item, error: `Status author ${fullAcct} does not match authorized account ${fediAuthor}` })
                   continue
                 }
@@ -1052,50 +1059,58 @@ z.object({
           }
 
           if (shouldFetch) {
-            try {
-              let token = binding.access_token
-              if (!token) {
-                const site = db.prepare('SELECT settings FROM sites WHERE id = ?').get(ctx.siteId) as any
-                if (site) {
-                  const s = typeof site.settings === 'string' ? JSON.parse(site.settings) : (site.settings || {})
-                  token = s.fediConfig?.accessToken || ''
-                }
-              }
-              if (token) {
-                const headers: Record<string, string> = { Accept: 'application/json' }
-                Object.assign(headers, adp.authHeader(token))
-                const contextUrl = adp.contextUrl(binding.instance_url, binding.status_id)
-                const raw = await fetch(contextUrl, { headers, signal: AbortSignal.timeout(10000) })
-                if (raw.ok) {
-                  const json = await raw.json()
-                  const { descendants } = adp.parseContext(json)
-                  const now = new Date().toISOString()
-
-                  db.prepare('DELETE FROM mastodon_cached_comments WHERE binding_id = ?').run(binding.id)
-
-                  const insertStmt = db.prepare(
-                    'INSERT INTO mastodon_cached_comments (id, binding_id, mastodon_comment_id, author_name, author_avatar, author_fedi_id, content, created_at, fetched_at, favourites_count, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                  )
-                  for (const d of descendants) {
-                    const account = adp.parseAccount(d)
-                    insertStmt.run(
-                      `mastodon-cache-${nanoid()}`,
-                      binding.id,
-                      d.id,
-                      account.displayName,
-                      account.avatar,
-                      account.acct,
-                      d.content || '',
-                      d.created_at || now,
-                      now,
-                      adp.parseFavourites(d),
-                      d.in_reply_to_id || '',
-                    )
+            const fetchKey = `${ctx.siteId}:${binding.id}`
+            if (!activeFetches.has(fetchKey)) {
+              const fetchPromise = (async () => {
+                try {
+                  let token = binding.access_token
+                  if (!token) {
+                    const site = db.prepare('SELECT settings FROM sites WHERE id = ?').get(ctx.siteId) as any
+                    if (site) {
+                      const s = typeof site.settings === 'string' ? JSON.parse(site.settings) : (site.settings || {})
+                      token = s.fediConfig?.accessToken || ''
+                    }
                   }
+                  if (token) {
+                    const headers: Record<string, string> = { Accept: 'application/json' }
+                    Object.assign(headers, adp.authHeader(token))
+                    const contextUrl = adp.contextUrl(binding.instance_url, binding.status_id)
+                    const raw = await fetch(contextUrl, { headers, signal: AbortSignal.timeout(10000) })
+                    if (raw.ok) {
+                      const json = await raw.json()
+                      const { descendants } = adp.parseContext(json)
+                      const now = new Date().toISOString()
+
+                      db.prepare('DELETE FROM mastodon_cached_comments WHERE binding_id = ?').run(binding.id)
+
+                      const insertStmt = db.prepare(
+                        'INSERT INTO mastodon_cached_comments (id, binding_id, mastodon_comment_id, author_name, author_avatar, author_fedi_id, content, created_at, fetched_at, favourites_count, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                      )
+                      for (const d of descendants) {
+                        const account = adp.parseAccount(d)
+                        insertStmt.run(
+                          `mastodon-cache-${nanoid()}`,
+                          binding.id,
+                          d.id,
+                          account.displayName,
+                          account.avatar,
+                          account.acct,
+                          d.content || '',
+                          d.created_at || now,
+                          now,
+                          adp.parseFavourites(d),
+                          d.in_reply_to_id || '',
+                        )
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.error('[mastodon] Background fetch failed for binding', binding.id, err)
+                } finally {
+                  activeFetches.delete(fetchKey)
                 }
-              }
-            } catch (err) {
-              console.error('[mastodon] Fetch failed for binding', binding.id, err)
+              })()
+              activeFetches.set(fetchKey, fetchPromise)
             }
           }
 

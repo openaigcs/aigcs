@@ -70,6 +70,7 @@ class AIGCSWidget extends HTMLElement {
   config: Record<string, unknown> = {}
   private adminPinSession = ''
   private replyToId = ''
+  private editableComments = new Map<string, string>()
   private editCommentId = ''
   private deleteFormId = ''
   private pinRequired = false
@@ -220,7 +221,7 @@ class AIGCSWidget extends HTMLElement {
     try {
       const base = this.serverUrl || ''
       const generate = this.autoGenerate ? '' : '&generate=false'
-      const url = `${base}/api/widget/${this.domain}/comments?path=${encodeURIComponent(this.path)}${generate}`
+      const url = `${base}/api/widget/${this.domain}/comments?path=${encodeURIComponent(this.path)}${generate}&_v=${this.visitorId}`
       const res = await fetch(url, {
         headers: this.etag ? { 'If-None-Match': this.etag } : {},
       })
@@ -542,11 +543,11 @@ class AIGCSWidget extends HTMLElement {
       btns.push(`<button class="aigcs-more-toggle" data-comment-id="${data.id}" title="More">⋮</button>`)
       btns.push(`<button class="aigcs-header-action-btn" data-action="reply" data-comment-id="${data.id}">${this.t('reply')}</button>`)
 
-      // Edit button - check time window
+      // Edit button - check time window and session token in editableComments Map
       const editWindow = parseInt(String((this.pluginConfig as any)?.edit_window_minutes || '3'), 10) * 60 * 1000
       const commentTime = data.createdAt ? new Date(data.createdAt).getTime() : 0
       const withinWindow = commentTime > 0 && (Date.now() - commentTime) < editWindow
-      if (data.visitorId && data.visitorId === this.visitorId && withinWindow) {
+      if (this.editableComments.has(data.id) && withinWindow) {
         btns.push(`<button class="aigcs-header-action-btn" data-action="edit" data-comment-id="${data.id}">${this.t('edit')}</button>`)
       }
 
@@ -912,7 +913,11 @@ class AIGCSWidget extends HTMLElement {
       const res = await fetch(`${base}/api/widget/${this.domain}/comment/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: ta.value.trim(), visitorId: this.visitorId }),
+        body: JSON.stringify({
+          content: ta.value.trim(),
+          visitorId: this.visitorId,
+          editToken: this.editableComments.get(id) || '',
+        }),
       })
       const json = await res.json()
       if (json.code === 0) {
@@ -1001,7 +1006,7 @@ class AIGCSWidget extends HTMLElement {
         body: JSON.stringify({ commentId, reaction: reactionType, visitorId: this.visitorId }),
       })
       const json = await res.json() as { code: number; data: { action: string } }
-      const comment = this.commentsData.find(c => c.id === commentId)
+      const comment = this.commentsData.find(c => c.id === commentId) || this.visitorComments.find(c => c.id === commentId)
       if (!comment) return
       if (json.data?.action === 'added') {
         comment.reactions[reactionType] = (comment.reactions[reactionType] || 0) + 1
@@ -1133,6 +1138,10 @@ class AIGCSWidget extends HTMLElement {
           return
         }
         if (json.data?.id) {
+          // Store editToken in memory Map if returned
+          if (json.data.editToken) {
+            this.editableComments.set(json.data.id, json.data.editToken)
+          }
           // Store PIN in session if it was used
           if (body.pin && !this.adminPinSession) {
             this.adminPinSession = body.pin
@@ -1219,19 +1228,29 @@ class AIGCSWidget extends HTMLElement {
   private sanitizeHtml(html: string): string {
     const div = document.createElement('div')
     div.innerHTML = html
-    const scripts = div.querySelectorAll('script, iframe, object, embed, style, link, meta, svg, math')
+    const scripts = div.querySelectorAll('script, iframe, object, embed, style, link, meta, svg, math, form, button, input, textarea, select, option')
     scripts.forEach(el => el.remove())
     const all = div.querySelectorAll('*')
     all.forEach(el => {
-      for (const attr of el.attributes) {
+      for (const attr of Array.from(el.attributes)) {
         const name = attr.name.toLowerCase()
         if (name.startsWith('on')) {
           el.removeAttribute(attr.name)
           continue
         }
-        if (name === 'href' || name === 'src' || name === 'xlink:href' || name === 'formaction' || name === 'action') {
-          const val = attr.value.toLowerCase().trim()
-          if (val.startsWith('javascript:') || val.startsWith('data:') || val.startsWith('vbscript:') || val.startsWith('file:') || !val) {
+        if (name === 'href' || name === 'src' || name === 'xlink:href' || name === 'formaction' || name === 'action' || name === 'poster' || name === 'srcdoc') {
+          let val = attr.value.replace(/[\x00-\x20]/g, '').toLowerCase().trim()
+          
+          const temp = document.createElement('div')
+          temp.innerHTML = attr.value
+          let decodedVal = temp.textContent || temp.innerText || ''
+          decodedVal = decodedVal.replace(/[\x00-\x20]/g, '').toLowerCase().trim()
+
+          if (
+            val.startsWith('javascript:') || val.startsWith('data:') || val.startsWith('vbscript:') || val.startsWith('file:') ||
+            decodedVal.startsWith('javascript:') || decodedVal.startsWith('data:') || decodedVal.startsWith('vbscript:') || decodedVal.startsWith('file:') ||
+            !attr.value.trim()
+          ) {
             el.removeAttribute(attr.name)
           }
         }
@@ -1240,7 +1259,7 @@ class AIGCSWidget extends HTMLElement {
     const imgs = div.querySelectorAll('img[src]')
     imgs.forEach(img => {
       const src = img.getAttribute('src') || ''
-      if (!src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('/')) {
+      if (!src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('/') && !src.startsWith('data:image/')) {
         img.removeAttribute('src')
       }
     })

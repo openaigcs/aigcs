@@ -24,12 +24,14 @@ CREATE TABLE `comments` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `idx_comments_unique` ON `comments` (`site_id`,`path`,`provider_name`);--> statement-breakpoint
-CREATE UNIQUE INDEX `idx_comments_lookup` ON `comments` (`site_id`,`path`);--> statement-breakpoint
+CREATE INDEX `idx_comments_lookup` ON `comments` (`site_id`,`path`);--> statement-breakpoint
 CREATE TABLE `page_cache` (
 	`id` text PRIMARY KEY NOT NULL,
 	`site_id` text NOT NULL,
 	`path` text NOT NULL,
 	`status` text DEFAULT 'pending' NOT NULL,
+	`title` text,
+	`content_source` text,
 	`etag` text,
 	`generated_at` text,
 	`expires_at` text,
@@ -41,6 +43,46 @@ CREATE TABLE `page_cache` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `idx_page_cache_unique` ON `page_cache` (`site_id`,`path`);--> statement-breakpoint
+CREATE TABLE `email_unsubscribes` (
+	`id` text PRIMARY KEY NOT NULL,
+	`email` text NOT NULL,
+	`context` text NOT NULL,
+	`created_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `mastodon_bindings` (
+	`id` text PRIMARY KEY NOT NULL,
+	`site_id` text NOT NULL,
+	`slug` text NOT NULL,
+	`instance_type` text DEFAULT 'mastodon' NOT NULL,
+	`instance_url` text NOT NULL,
+	`status_id` text NOT NULL,
+	`software` text DEFAULT '' NOT NULL,
+	`access_token` text DEFAULT '' NOT NULL,
+	`fedi_author` text DEFAULT '' NOT NULL,
+	`auto_fetch` integer DEFAULT 1 NOT NULL,
+	`cache_ttl` integer DEFAULT 30 NOT NULL,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `mastodon_cached_comments` (
+	`id` text PRIMARY KEY NOT NULL,
+	`binding_id` text NOT NULL,
+	`mastodon_comment_id` text NOT NULL,
+	`author_name` text DEFAULT '' NOT NULL,
+	`author_avatar` text DEFAULT '' NOT NULL,
+	`author_fedi_id` text DEFAULT '' NOT NULL,
+	`content` text DEFAULT '' NOT NULL,
+	`created_at` text NOT NULL,
+	`fetched_at` text NOT NULL,
+	`favourites_count` integer DEFAULT 0 NOT NULL,
+	`parent_id` text DEFAULT '' NOT NULL,
+	`hidden` integer DEFAULT 0 NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX `idx_mastodon_cached_comments_binding` ON `mastodon_cached_comments` (`binding_id`);--> statement-breakpoint
 CREATE TABLE `plugins` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
@@ -99,8 +141,7 @@ CREATE TABLE `comment_reactions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`comment_id` text NOT NULL,
 	`reaction_type` text NOT NULL,
-	`count` integer DEFAULT 0 NOT NULL,
-	FOREIGN KEY (`comment_id`) REFERENCES `comments`(`id`) ON UPDATE no action ON DELETE cascade
+	`count` integer DEFAULT 0 NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `idx_comment_reaction` ON `comment_reactions` (`comment_id`,`reaction_type`);--> statement-breakpoint
@@ -120,8 +161,7 @@ CREATE TABLE `reaction_votes` (
 	`comment_id` text NOT NULL,
 	`reaction_type` text NOT NULL,
 	`visitor_hash` text NOT NULL,
-	`created_at` text NOT NULL,
-	FOREIGN KEY (`comment_id`) REFERENCES `comments`(`id`) ON UPDATE no action ON DELETE cascade
+	`created_at` text NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `idx_reaction_vote` ON `reaction_votes` (`comment_id`,`reaction_type`,`visitor_hash`);--> statement-breakpoint
@@ -152,6 +192,13 @@ CREATE TABLE `system_config` (
 	`recaptcha_secret_key` text,
 	`geetest_captcha_id` text,
 	`geetest_captcha_key` text,
+	`cap_site_key` text,
+	`cap_secret_key` text,
+	`cap_verify_url` text,
+	`altcha_site_key` text,
+	`altcha_secret_key` text,
+	`hcaptcha_site_key` text,
+	`hcaptcha_secret_key` text,
 	`jwt_secret` text,
 	`global_system_prompt` text,
 	`email_notify_comments` integer DEFAULT false NOT NULL,
@@ -160,6 +207,7 @@ CREATE TABLE `system_config` (
 	`rate_limit_max` integer DEFAULT 100 NOT NULL,
 	`rate_limit_window` integer DEFAULT 60 NOT NULL,
 	`provider_defaults` text,
+	`email_locale` text DEFAULT 'en' NOT NULL,
 	`updated_at` text
 );
 --> statement-breakpoint
@@ -187,8 +235,39 @@ CREATE TABLE `users` (
 	`totp_secret` text,
 	`totp_enabled` integer DEFAULT false NOT NULL,
 	`totp_backup_codes` text,
+	`avatar` text DEFAULT '' NOT NULL,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);
+CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint
+CREATE TABLE `verification_codes` (
+	`id` text PRIMARY KEY NOT NULL,
+	`email` text NOT NULL,
+	`code` text NOT NULL,
+	`purpose` text DEFAULT 'delete_comment' NOT NULL,
+	`target_id` text DEFAULT '' NOT NULL,
+	`expires_at` text NOT NULL,
+	`created_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `visitor_comments` (
+	`id` text PRIMARY KEY NOT NULL,
+	`site_id` text NOT NULL,
+	`path` text NOT NULL,
+	`parent_id` text,
+	`author_name` text NOT NULL,
+	`author_email` text DEFAULT '' NOT NULL,
+	`author_url` text DEFAULT '' NOT NULL,
+	`content` text NOT NULL,
+	`ip` text DEFAULT '' NOT NULL,
+	`user_agent` text DEFAULT '' NOT NULL,
+	`status` text DEFAULT 'approved' NOT NULL,
+	`visitor_id` text DEFAULT '' NOT NULL,
+	`notify_on_reply` integer DEFAULT 0 NOT NULL,
+	`edited_at` text,
+	`created_at` text NOT NULL,
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_visitor_comments_lookup` ON `visitor_comments` (`site_id`,`path`,`status`,`created_at`);

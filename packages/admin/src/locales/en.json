@@ -273,6 +273,7 @@
     "rssWarmBtn": "Start Generating",
     "rssWarmStarted": "Background generation started",
     "rssProvider": "Select AI Provider",
+    "warmTips": "It is recommended to select only one AI provider at a time to prevent API rate limits.",
     "rssSelectAll": "Select All",
     "allProviders": "All Providers",
     "rssConcurrency": "Concurrency",

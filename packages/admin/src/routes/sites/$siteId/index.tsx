@@ -156,7 +156,7 @@ function SettingsTab({ siteId, site, siteDomain, contentSelector, setContentSele
   const [showAiBadge, setShowAiBadge] = useState(site.settings?.showAiBadge !== false)
   const [aiBadgePosition, setAiBadgePosition] = useState(site.settings?.aiBadgePosition || 'nick')
   const [showReactions, setShowReactions] = useState(site.settings?.showReactions !== false)
-  const [emailNotifyComments, setEmailNotifyComments] = useState(site.settings?.emailNotifyComments !== false)
+  const [emailNotifyComments, setEmailNotifyComments] = useState(!!site.settings?.emailNotifyComments)
   const [commentGeneratedTemplate, setCommentGeneratedTemplate] = useState(site.settings?.commentGeneratedTemplate || '')
   const savedSettingsRef = useRef('')
 
@@ -1390,7 +1390,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
 
   // ── Provider selector for generate ──
   const [selectedProviderIds, setSelectedProviderIds] = useState<string[]>([])
-  const [selectAllProviders, setSelectAllProviders] = useState(true)
+  const [selectAllProviders, setSelectAllProviders] = useState(false)
   const { data: siteProviders } = useQuery({
     queryKey: ['site-providers-content', siteId],
     queryFn: () => api<any[]>(`/api/admin/sites/${siteId}/providers`),
@@ -1785,6 +1785,9 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
         {/* Generate options panel */}
         {generatePanel && enabledProviders.length > 0 && (
           <div className="mb-4 p-3 border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <div className="text-xs text-orange-600 dark:text-orange-400 mb-2.5 font-medium">
+              ⚠️ {t('sites.warmTips')}
+            </div>
             <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-1.5">
               <input type="checkbox" checked={selectAllProviders} onChange={() => { setSelectAllProviders(!selectAllProviders); if (!selectAllProviders) setSelectedProviderIds([]) }} className="dark:bg-gray-800" />
               {t('sites.rssSelectAll')}

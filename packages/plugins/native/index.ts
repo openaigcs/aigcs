@@ -275,7 +275,7 @@ formPosition: getPluginSetting('formPosition') || 'top',
             }
 
             if (notifyEmail) {
-              const { isUnsubscribed, buildUnsubscribeUrl } = await import('../../../packages/server/src/services/unsubscribe.js')
+              const { isUnsubscribed, buildUnsubscribeUrl, resolveAdminUrl } = await import('../../../packages/server/src/services/unsubscribe.js')
 
               if (!isUnsubscribed(_rawDb, notifyEmail, ctx.siteId)) {
                 const siteRow = _rawDb.prepare(
@@ -284,7 +284,7 @@ formPosition: getPluginSetting('formPosition') || 'top',
 
                 const siteDomain = siteRow?.domain || ''
                 const pageUrl = `https://${siteDomain}${ctx.path}`
-                const adminUrl = process.env.ADMIN_URL || (siteDomain ? `https://${siteDomain}` : '')
+                const adminUrl = resolveAdminUrl(process.env.ADMIN_URL, siteDomain)
                 const unsubscribeUrl = buildUnsubscribeUrl(adminUrl, notifyEmail, ctx.siteId, 'en')
                 const unsubscribeText = 'Unsubscribe'
 
@@ -335,7 +335,7 @@ formPosition: getPluginSetting('formPosition') || 'top',
             ).get(ctx.parentId) as { author_name: string; author_email: string; notify_on_reply: number } | undefined
 
             if (parentRow?.author_email && parentRow.notify_on_reply === 1 && parentRow.author_email.toLowerCase() !== (ctx.authorEmail || '').toLowerCase()) {
-              const { isUnsubscribed, buildUnsubscribeUrl } = await import('../../../packages/server/src/services/unsubscribe.js')
+              const { isUnsubscribed, buildUnsubscribeUrl, resolveAdminUrl } = await import('../../../packages/server/src/services/unsubscribe.js')
 
               if (!isUnsubscribed(_rawDb, parentRow.author_email, ctx.siteId)) {
                 const siteRow = _rawDb.prepare(
@@ -343,7 +343,7 @@ formPosition: getPluginSetting('formPosition') || 'top',
                 ).get(ctx.siteId) as { domain: string } | undefined
                 const siteDomain = siteRow?.domain || ''
                 const pageUrl = `https://${siteDomain}${ctx.path}`
-                const adminUrl = process.env.ADMIN_URL || (siteDomain ? `https://${siteDomain}` : '')
+                const adminUrl = resolveAdminUrl(process.env.ADMIN_URL, siteDomain)
                 const unsubscribeUrl = buildUnsubscribeUrl(adminUrl, parentRow.author_email, ctx.siteId, 'en')
                 const unsubscribeText = 'Unsubscribe'
                 const templateData = { authorName: ctx.authorName, domain: siteDomain, path: ctx.path, pageUrl, content: ctx.content }

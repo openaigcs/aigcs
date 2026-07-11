@@ -7,7 +7,7 @@ import {
   reactionTypes, commentReactions, reactionVotes, comments, apiTokens, users, plugins,
   visitorComments, systemConfig,
 } from '@aigcs/core'
-import { eq, and, like, sql } from 'drizzle-orm'
+import { eq, and, like, sql, inArray } from 'drizzle-orm'
 import { createHash, randomBytes } from 'node:crypto'
 import { HTTPException } from 'hono/http-exception'
 import { nanoid } from 'nanoid'
@@ -1060,7 +1060,7 @@ router.post('/sites/:siteId/cache/warm', zValidator('json', z.object({
       .from(providers)
       .where(and(
         eq(providers.siteId, siteId),
-        sql`${providers.id} IN (${opts.providerIds.join(',')})`
+        inArray(providers.id, opts.providerIds)
       )).all() as any[]
     const names = providerNames.map((p: any) => p.displayName)
 

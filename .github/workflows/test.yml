@@ -25,5 +25,7 @@ jobs:
 
       - run: pnpm typecheck
 
+      - run: pnpm lint
+
       - run: pnpm --filter @aigcs/core test
       - run: pnpm --filter @aigcs/server test

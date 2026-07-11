@@ -7,7 +7,7 @@ import { createHash, createHmac, randomUUID } from 'node:crypto'
 import DOMPurify from 'dompurify'
 import { JSDOM } from 'jsdom'
 import { decrypt } from '../services/encryption.js'
-import { isUnsubscribed, buildUnsubscribeUrl } from '../services/unsubscribe.js'
+import { isUnsubscribed, buildUnsubscribeUrl, resolveAdminUrl } from '../services/unsubscribe.js'
 import type { FetchContext, SubmitContext } from '@aigcs/core'
 import { runHook } from '../plugins/registry.js'
 import { extractPageContent, extractPageTitle } from '../lib/extract-content.js'
@@ -742,8 +742,16 @@ router.post('/:domain/comment/:id/verify-delete', async (c) => {
     throw new HTTPException(404, { message: '评论不存在' })
   }
 
-  // Delete the comment
-  raw.prepare("DELETE FROM visitor_comments WHERE id = ?").run(id)
+  // Soft delete the comment (keep row to avoid breaking children trees, clean up personal data)
+  raw.prepare(`
+    UPDATE visitor_comments 
+    SET content = '此评论已被作者删除', 
+        author_name = '已删除', 
+        author_email = '', 
+        author_url = '', 
+        edited_at = ? 
+    WHERE id = ?
+  `).run(new Date().toISOString(), id)
 
   // Consume the code
   raw.prepare("UPDATE verification_codes SET expires_at = ? WHERE id = ?").run(new Date(0).toISOString(), record.id)
@@ -923,8 +931,7 @@ async function generateComments(siteId: string, path: string, siteDomain?: strin
         ALLOWED_ATTR: ['href', 'target', 'rel'],
       })
       const contentMd5 = md5(cleanContent)
-      raw.exec('BEGIN')
-      try {
+      const writeTx = raw.transaction(() => {
         raw.prepare('DELETE FROM comments WHERE site_id = ? AND path = ? AND provider_name = ?').run(siteId, path, (provider as any).displayName)
         db.insert(comments).values({
           id: commentId,
@@ -938,11 +945,15 @@ async function generateComments(siteId: string, path: string, siteDomain?: strin
           contentMd5,
           generatedAt: new Date().toISOString(),
         }).run()
-        raw.exec('COMMIT')
-      } catch (err) {
-        raw.exec('ROLLBACK')
-        throw err
-      }
+
+        const defaultReactions = raw.prepare("SELECT id FROM reaction_types WHERE is_system = 1 AND enabled = 1").all() as Array<{ id: string }>
+        const insertReaction = raw.prepare('INSERT OR IGNORE INTO comment_reactions (id, comment_id, reaction_type, count) VALUES (?, ?, ?, 0)')
+        for (const rt of defaultReactions) {
+          insertReaction.run(randomUUID(), commentId, rt.id)
+        }
+      })
+
+      writeTx()
 
       await runHook('afterGenerate', {
         siteId,
@@ -952,11 +963,6 @@ async function generateComments(siteId: string, path: string, siteDomain?: strin
         commentContent: cleanContent,
         commentId,
       })
-
-      const defaultReactions = raw.prepare("SELECT id FROM reaction_types WHERE is_system = 1 AND enabled = 1").all() as Array<{ id: string }>
-      for (const rt of defaultReactions) {
-        raw.prepare('INSERT OR IGNORE INTO comment_reactions (id, comment_id, reaction_type, count) VALUES (?, ?, ?, 0)').run(randomUUID(), commentId, rt.id)
-      }
     })
   )
 
@@ -994,7 +1000,7 @@ async function generateComments(siteId: string, path: string, siteDomain?: strin
       const { renderEmail, getEmailSubject, getEmailLocale } = await import('../email-templates/index.js')
       const user = db.select().from(users).where(eq(users.id, site.userId)).get() as any
       if (user?.email && !isUnsubscribed(raw, user.email, siteId)) {
-        const adminUrl = process.env.ADMIN_URL || ''
+        const adminUrl = resolveAdminUrl(process.env.ADMIN_URL, site.domain)
         const emailLocale = getEmailLocale(raw)
         const templateData = { path, domain: site.domain }
         let body: string | undefined

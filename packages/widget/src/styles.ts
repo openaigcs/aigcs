@@ -1202,4 +1202,26 @@ export const STYLES = `:host {
   font-weight: 600;
   text-decoration: none;
 }
+
+/* ── Deleted comments styling ── */
+.aigcs-comment-collapsed .aigcs-comment-deleted {
+  opacity: 0.6;
+  background-color: var(--border, rgba(0, 0, 0, 0.03)) !important;
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+.aigcs-comment-deleted .aigcs-deleted-content-text {
+  font-style: italic;
+  color: var(--text-secondary, #888);
+  font-size: 0.85rem;
+}
+.aigcs-comment-author-deleted {
+  color: var(--text-secondary, #888) !important;
+  font-style: italic;
+}
+.aigcs-comment-avatar svg {
+  color: var(--text-secondary, #bbb);
+  width: 24px;
+  height: 24px;
+}
 `

@@ -277,6 +277,7 @@
     "rssWarmBtn": "开始生成评论",
     "rssWarmStarted": "后台生成已开始",
     "rssProvider": "选择 AI Provider",
+    "warmTips": "建议同一时间只选择一个 AI 提供商，以防接口请求频繁被限速",
     "rssSelectAll": "全选",
     "allProviders": "所有 AI",
     "rssConcurrency": "并发数",

@@ -367,8 +367,16 @@ class AIGCSWidget extends HTMLElement {
           if (!map.has(pid)) map.set(pid, [])
           map.get(pid)!.push(c)
         }
-        const tree = (parentId: string): any[] =>
-          (map.get(parentId) || []).map(c => ({ data: c, children: tree(c.id) }))
+        const tree = (parentId: string): any[] => {
+          const nodes = (map.get(parentId) || []).map(c => ({ data: c, children: tree(c.id) }))
+          return nodes.filter(node => {
+            const isSoftDeleted = node.data.authorName === '已删除' || node.data.content === '此评论已被作者删除'
+            if (isSoftDeleted && node.children.length === 0) {
+              return false
+            }
+            return true
+          })
+        }
         return tree('__root__')
       }
 
@@ -469,13 +477,16 @@ class AIGCSWidget extends HTMLElement {
   }
 
   private renderCommentCard(type: 'ai' | 'visitor' | 'fedi', data: any): string {
+    const isSoftDeleted = (type === 'visitor' || type === 'fedi') && (data.authorName === '已删除' || data.content === '此评论已被作者删除')
     const time = data.createdAt || data.generatedAt
-    const timeHtml = time ? `<span class="aigcs-comment-model">· ${this.formatTime(time)}</span>` : ''
+    const timeHtml = time && !isSoftDeleted ? `<span class="aigcs-comment-model">· ${this.formatTime(time)}</span>` : ''
 
     const avatarParams = (this.pluginConfig?.avatarParams as string) || 'd=mp&s=48'
 
     let avatarInner: string
-    if (type === 'ai' && data.avatarSvg) {
+    if (isSoftDeleted) {
+      avatarInner = `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`
+    } else if (type === 'ai' && data.avatarSvg) {
       avatarInner = `<img src="${data.avatarSvg}" alt="${data.authorName}" loading="lazy" />`
     } else if (type === 'fedi' && data.avatar) {
       avatarInner = `<img src="${this.escapeHtml(data.avatar)}" alt="${this.escapeHtml(data.authorName)}" loading="lazy" onerror="this.style.display='none';this.parentNode.innerHTML='<svg viewBox=\\'0 0 24 24\\' width=\\'100%\\' height=\\'100%\\' fill=\\'currentColor\\'><path d=\\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\\'/></svg>'" />`
@@ -509,7 +520,9 @@ class AIGCSWidget extends HTMLElement {
     : ''
 
     let authorHtml: string
-    if ((type === 'visitor' || type === 'fedi') && data.authorUrl) {
+    if (isSoftDeleted) {
+      authorHtml = `<span class="aigcs-comment-author aigcs-comment-author-deleted">${this.escapeHtml(data.authorName)}</span>`
+    } else if ((type === 'visitor' || type === 'fedi') && data.authorUrl) {
       authorHtml = `${fediBadgeHtml}<a href="${this.escapeHtml(data.authorUrl)}" target="_blank" rel="noopener" class="aigcs-comment-author aigcs-visitor-link">${this.escapeHtml(data.authorName)}</a>`
     } else if (type === 'ai') {
       authorHtml = `${aiNickBadgeHtml}<span class="aigcs-comment-author">${this.escapeHtml(data.authorName)}</span>`
@@ -518,7 +531,7 @@ class AIGCSWidget extends HTMLElement {
     }
 
     // Reply-to indicator
-    if ((type === 'visitor' || type === 'fedi') && data.parentId) {
+    if (!isSoftDeleted && (type === 'visitor' || type === 'fedi') && data.parentId) {
       const parent = this.visitorComments.find(c => c.id === data.parentId)
       if (parent) {
         authorHtml += `<span class="aigcs-reply-to">${this.escapeHtml(parent.authorName)}</span>`
@@ -526,19 +539,19 @@ class AIGCSWidget extends HTMLElement {
     }
 
     const modelHtml = type === 'ai' && data.showModel && data.model ? `<span class="aigcs-comment-model">· ${data.model}</span>` : ''
-    const reactionsHtml = data.reactions && (type === 'ai' ? this.showAiReactions : type === 'fedi' ? false : this.showReactions) ? this.renderReactions(data) : ''
+    const reactionsHtml = !isSoftDeleted && data.reactions && (type === 'ai' ? this.showAiReactions : type === 'fedi' ? false : this.showReactions) ? this.renderReactions(data) : ''
 
     const emptyNote = type === 'ai' && data.authorAvatar === '#empty-content'
       ? `<p class="aigcs-empty-content-note">${this.t('emptyContentWarning')}</p>`
       : ''
 
-    const editedLabel = (type === 'visitor' || type === 'fedi') && data.editedAt
+    const editedLabel = !isSoftDeleted && (type === 'visitor' || type === 'fedi') && data.editedAt
       ? `<span class="aigcs-edited-label">· ${this.t('edited')}</span>`
       : ''
 
     // Header action buttons
     let headerActionsHtml = ''
-    if (type === 'visitor') {
+    if (type === 'visitor' && !isSoftDeleted) {
       const btns: string[] = []
       btns.push(`<button class="aigcs-more-toggle" data-comment-id="${data.id}" title="More">⋮</button>`)
       btns.push(`<button class="aigcs-header-action-btn" data-action="reply" data-comment-id="${data.id}">${this.t('reply')}</button>`)
@@ -568,7 +581,7 @@ class AIGCSWidget extends HTMLElement {
 
     // Email delete form
     let emailFormHtml = ''
-    if (type === 'visitor' && !this.adminPinSession && data.authorEmail && this.config.emailDeletion !== false) {
+    if (type === 'visitor' && !isSoftDeleted && !this.adminPinSession && data.authorEmail && this.config.emailDeletion !== false) {
       emailFormHtml = `<div class="aigcs-delete-email-form aigcs-hidden" id="delete-email-${data.id}">
         <input class="aigcs-delete-email-input" type="email" placeholder="${this.t('deleteEmailPlaceholder')}" id="delete-email-input-${data.id}" />
         <button class="aigcs-delete-email-btn" data-action="send-code" data-comment-id="${data.id}">${this.t('sendCode')}</button>
@@ -586,11 +599,13 @@ class AIGCSWidget extends HTMLElement {
            <button class="aigcs-edit-save" data-action="save-edit" data-comment-id="${data.id}">${this.t('formSubmit')}</button>
            <button class="aigcs-edit-cancel" data-action="cancel-edit" data-comment-id="${data.id}">${this.t('cancelEdit')}</button>
          </div>`
-      : type === 'fedi'
-        ? `${emptyNote}<div class="aigcs-fedi-content">${this.sanitizeHtml(data.content)}</div>`
-        : `${emptyNote}<div class="aigcs-md-content">${this.sanitizeHtml(renderMarkdown(data.content))}</div>`
+      : isSoftDeleted
+        ? `<div class="aigcs-deleted-content-text">${this.escapeHtml(data.content)}</div>`
+        : type === 'fedi'
+          ? `${emptyNote}<div class="aigcs-fedi-content">${this.sanitizeHtml(data.content)}</div>`
+          : `${emptyNote}<div class="aigcs-md-content">${this.sanitizeHtml(renderMarkdown(data.content))}</div>`
 
-    return `<div class="aigcs-comment-floor">
+    return `<div class="aigcs-comment-floor ${isSoftDeleted ? 'aigcs-comment-deleted' : ''}">
       <div class="aigcs-comment-body">
         <div class="aigcs-comment-avatar">${avatarHtml}</div>
         <div class="aigcs-comment-main">
@@ -611,8 +626,9 @@ class AIGCSWidget extends HTMLElement {
   private renderCommentTree(node: { data: any; children: any[] }, depth: number, rendered: string[], group?: 'native' | 'fedi') {
     const baseIndent = 2.5
     const type = group === 'fedi' ? 'fedi' : 'visitor'
+    const isSoftDeleted = node.data.authorName === '已删除' || node.data.content === '此评论已被作者删除'
 
-    rendered.push(this.renderCommentCard(type, node.data))
+    rendered.push(isSoftDeleted ? `<div class="aigcs-comment-collapsed">${this.renderCommentCard(type, node.data)}</div>` : this.renderCommentCard(type, node.data))
 
     if (this.replyToId === node.data.id) {
       rendered.push(`<div class="aigcs-inline-reply">${this.renderCommentForm()}</div>`)

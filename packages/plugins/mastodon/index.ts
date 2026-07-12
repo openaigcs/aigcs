@@ -989,6 +989,25 @@ z.object({
           if (!site) return c.json({ code: 1, message: 'Site not found' }, 404)
           const existing = typeof site.settings === 'string' ? JSON.parse(site.settings) : (site.settings || {})
           const currentFediConfig = existing.fediConfig || {}
+
+          if (body.fedAdminAcct) {
+            const acct = body.fedAdminAcct.trim()
+            const match = acct.match(/@([^@]+)$/)
+            if (match && match[1]) {
+              const acctDomain = match[1].toLowerCase()
+              let host = ''
+              try {
+                host = new URL(body.instanceUrl || currentFediConfig.instanceUrl).hostname.toLowerCase()
+              } catch {}
+              if (host) {
+                // Ensure same base domain to prevent evil domains (e.g. domain.com vs evildomain.com)
+                const isValid = acctDomain === host || acctDomain.endsWith('.' + host) || host.endsWith('.' + acctDomain)
+                if (!isValid) {
+                  return c.json({ code: 1, message: '联邦账号域名必须与实例域名同源' }, 400)
+                }
+              }
+            }
+          }
           const newSettings = {
             ...existing,
             fediConfig: (() => {

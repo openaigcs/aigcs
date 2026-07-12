@@ -390,8 +390,8 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
                 <div className="h-9 flex items-center text-sm text-gray-700 dark:text-gray-300">{fediConfig.instanceUrl}</div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.fediAuthor')}</label>
-                <div className="h-9 flex items-center text-sm text-gray-700 dark:text-gray-300">@{fediConfig.fediAuthor}</div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.fedAdminAcct')}</label>
+                <Input value={fedAdminAcct} onChange={(v: string) => { setFedAdminAcct(v); if (!configForm) setConfigForm(getConfig() as any) }} placeholder="@admin@example.com" />
               </div>
             </>
           ) : (
@@ -415,10 +415,6 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
                   url = url.replace(/\/+$/, '')
                   if (url !== cfg.instanceUrl) setConfigForm({ ...cfg, instanceUrl: url })
                 }} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.fedAdminAcct')}</label>
-                <Input value={fedAdminAcct} onChange={(v: string) => { setFedAdminAcct(v); if (!configForm) setConfigForm(getConfig() as any) }} placeholder="@admin@example.com" />
               </div>
             </>
           )}

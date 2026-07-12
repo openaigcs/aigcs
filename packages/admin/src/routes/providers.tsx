@@ -233,7 +233,7 @@ export const Route = createRoute({
                               }} className="space-y-4">
                                 <div>
                                   <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('providersPage.apiKey')}</label>
-                                  <Input value={editKey} onChange={setEditKey} placeholder={t('common.enterApiKey')} className="font-mono" />
+                                  <Input type="password" value={editKey} onChange={setEditKey} placeholder={t('common.enterApiKey')} className="font-mono" />
                                   {API_KEY_URLS[expanded || ''] && (
                                     <a href={API_KEY_URLS[expanded!]} target="_blank" rel="noopener noreferrer" className="cursor-pointer text-xs text-blue-500 hover:underline mt-1 inline-block">{t('providersPage.getApiKey')}</a>
                                   )}
@@ -319,7 +319,7 @@ export const Route = createRoute({
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('providersPage.apiKey')}</label>
-                  <Input value={customKey} onChange={setCustomKey} />
+                  <Input type="password" value={customKey} onChange={setCustomKey} />
                 </div>
               </div>
               {saveMutation.isError && <p className="text-red-500 text-sm">{(saveMutation.error as Error).message}</p>}

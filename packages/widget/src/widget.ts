@@ -77,6 +77,7 @@ class AIGCSWidget extends HTMLElement {
   private _pickerClickHandler: (() => void) | null = null
   private captchaConfig: { provider: string; siteKey: string } | null = null
   private captchaToken = ''
+  private _contentListenersAttached = false
 
   static get observedAttributes() {
     return ['theme', 'light-theme', 'dark-theme', 'server', 'auto-generate', 'disable-copyright']
@@ -798,6 +799,9 @@ class AIGCSWidget extends HTMLElement {
   }
 
   private renderReactionListeners(el: HTMLElement) {
+    if (this._contentListenersAttached) return
+    this._contentListenersAttached = true
+    
     // Use event delegation on the content container
     el.addEventListener('click', (e) => {
       const target = e.target as HTMLElement
@@ -846,6 +850,13 @@ class AIGCSWidget extends HTMLElement {
         return
       }
 
+      // Cancel reply
+      if (target.closest('#aigcs-cancel-reply')) {
+        this.replyToId = ''
+        this.renderContent()
+        return
+      }
+
       // Actions via data-action
       const actionBtn = target.closest('[data-action]') as HTMLElement
       if (!actionBtn) return
@@ -888,15 +899,6 @@ class AIGCSWidget extends HTMLElement {
         this.handleVerifyDelete(id)
       }
     })
-
-    // Cancel reply button (separate handler since it's a single element)
-    const cancelReply = this.shadow.getElementById('aigcs-cancel-reply')
-    if (cancelReply) {
-      cancelReply.addEventListener('click', () => {
-        this.replyToId = ''
-        this.renderContent()
-      })
-    }
 
     // Desktop hover: show header actions
     el.querySelectorAll('.aigcs-comment-floor').forEach((floor) => {
@@ -1135,12 +1137,21 @@ class AIGCSWidget extends HTMLElement {
       if (json.code === 0) {
         if (json.data?.requirePin || json.data?.requiresPin) {
           // Server requires PIN — show PIN input
+          const savedName = nameInput.value
+          const savedEmail = emailInput?.value || ''
+          const savedUrl = urlInput?.value || ''
           const savedContent = contentInput.value
           this.pinRequired = true
           this.renderContent()
           requestAnimationFrame(() => {
             const newPin = this.shadow.getElementById('aigcs-form-pin') as HTMLInputElement
             if (newPin) newPin.focus()
+            const newName = this.shadow.getElementById('aigcs-form-name') as HTMLInputElement
+            if (newName) newName.value = savedName
+            const newEmail = this.shadow.getElementById('aigcs-form-email') as HTMLInputElement
+            if (newEmail) newEmail.value = savedEmail
+            const newUrl = this.shadow.getElementById('aigcs-form-url') as HTMLInputElement
+            if (newUrl) newUrl.value = savedUrl
             const newContent = this.shadow.getElementById('aigcs-form-content') as HTMLTextAreaElement
             if (newContent) newContent.value = savedContent
           })

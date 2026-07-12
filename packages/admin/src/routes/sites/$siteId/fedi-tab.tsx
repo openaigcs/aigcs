@@ -383,11 +383,11 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
             <>
               <div>
                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.instanceType')}</label>
-                <div className="h-9 flex items-center text-sm text-gray-700 dark:text-gray-300">{INSTANCE_LABELS[fediConfig.instanceType] || fediConfig.instanceType}</div>
+                <Input value={INSTANCE_LABELS[fediConfig.instanceType] || fediConfig.instanceType} onChange={() => {}} readOnly className="bg-gray-50 dark:bg-gray-700 cursor-not-allowed" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.instanceUrl')}</label>
-                <div className="h-9 flex items-center text-sm text-gray-700 dark:text-gray-300">{fediConfig.instanceUrl}</div>
+                <Input value={fediConfig.instanceUrl} onChange={() => {}} readOnly className="bg-gray-50 dark:bg-gray-700 cursor-not-allowed" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('fedi.fedAdminAcct')}</label>

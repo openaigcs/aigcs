@@ -11,6 +11,10 @@ AIGCS - AI Generated Comments System.
 ![Node](https://img.shields.io/badge/node-%3E%3D24-brightgreen)
 ![TypeScript](https://img.shields.io/badge/typescript-strict-3178C6)
 
+<p align="center">
+  <img src="./docs/public/preview.png" alt="AIGCS 预览图" width="800" />
+</p>
+
 ---
 
 ## 快速开始

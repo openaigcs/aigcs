@@ -1,4 +1,9 @@
 {
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications",
+    "markAllRead": "Mark all as read"
+  },
   "nav": {
     "providers": "AI Providers",
     "sites": "Sites",

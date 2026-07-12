@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import i18n from '../i18n.js'
 import { setLanguage } from '../i18n.js'
 import { PrimaryButton, SecondaryButton } from '../components/ui'
+import { NotificationBell } from '../components/NotificationBell'
 import { api } from '../api'
 import { md5 } from '../md5.js'
 
@@ -174,8 +175,10 @@ export const Route = createRootRoute({
               )}
             </div>
             {token ? (
-              <div className="relative" ref={userMenuRef}>
-                <button
+              <>
+                <NotificationBell />
+                <div className="relative" ref={userMenuRef}>
+                  <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="w-8 h-8 flex items-center justify-center rounded-full overflow-hidden border border-gray-200 dark:border-gray-600 hover:border-blue-500 transition-colors cursor-pointer"
                 >
@@ -235,6 +238,7 @@ export const Route = createRootRoute({
                   </div>
                 )}
               </div>
+              </>
             ) : (
               <SecondaryButton onClick={() => router.navigate({ to: '/login' })} className="!px-3 !py-1.5 text-sm">{t('nav.login')}</SecondaryButton>
             )}

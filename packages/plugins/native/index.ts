@@ -261,6 +261,20 @@ formPosition: getPluginSetting('formPosition') || 'top',
 
         ctx.result = { id }
 
+        // Send Notification Center alert
+        try {
+          const row = _rawDb.prepare(
+            'SELECT u.id FROM users u JOIN sites s ON s.user_id = u.id WHERE s.id = ?'
+          ).get(ctx.siteId) as { id: string } | undefined
+          if (row?.id) {
+            import('../../../packages/server/src/services/notification.js').then(({ createNotification }) => {
+              createNotification(row.id, 'info', '原生评论有新留言', `收到来自访客 ${ctx.authorName} 的新留言`, ctx.siteId)
+            }).catch(e => console.error('[plugin:native] Failed to import notification service:', e))
+          }
+        } catch (err) {
+          console.error('[plugin:native] Failed to create notification:', err)
+        }
+
         // Send email notification on new comment
         try {
           const notifyOnComment = getPluginSettings().notify_on_comment

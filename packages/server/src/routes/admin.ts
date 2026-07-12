@@ -75,6 +75,50 @@ function maskSensitiveConfig(config: Record<string, unknown>) {
   return result
 }
 
+// ── Notifications ──
+
+router.get('/notifications', async (c) => {
+  const user = c.get('user')!
+  const db = getDb()
+  const { notifications } = await import('@aigcs/core')
+  const { desc } = await import('drizzle-orm')
+
+  const list = db.select()
+    .from(notifications)
+    .where(eq(notifications.userId, user.id))
+    .orderBy(desc(notifications.createdAt))
+    .limit(50)
+    .all()
+  
+  const unreadCount = list.filter((n: any) => !n.isRead).length
+  return c.json({ code: 0, data: { items: list, unreadCount } })
+})
+
+router.post('/notifications/read-all', async (c) => {
+  const user = c.get('user')!
+  const db = getDb()
+  const { notifications } = await import('@aigcs/core')
+
+  db.update(notifications)
+    .set({ isRead: true })
+    .where(eq(notifications.userId, user.id))
+    .run()
+  return c.json({ code: 0 })
+})
+
+router.post('/notifications/:id/read', async (c) => {
+  const user = c.get('user')!
+  const id = c.req.param('id')
+  const db = getDb()
+  const { notifications } = await import('@aigcs/core')
+
+  db.update(notifications)
+    .set({ isRead: true })
+    .where(and(eq(notifications.id, id), eq(notifications.userId, user.id)))
+    .run()
+  return c.json({ code: 0 })
+})
+
 // ── Sites ──
 
 router.get('/sites', async (c) => {
@@ -1035,6 +1079,9 @@ router.post('/sites/:siteId/import-rss', zValidator('json', z.object({
     console.error('[webhook] Failed to fire rss.import_completed:', err)
   }
 
+  const { createNotification } = await import('../services/notification.js')
+  createNotification(user.id, 'success', 'RSS 导入完成', `成功抓取并新增 ${imported} 篇文章 (总读取 ${entries.length} 篇)`, siteId)
+
   return c.json({ code: 0, data: { total: entries.length, imported, entries: results } })
 })
 
@@ -1096,22 +1143,22 @@ router.post('/sites/:siteId/cache/warm', zValidator('json', z.object({
   }
 
   const site = db.select().from(sites).where(eq(sites.id, siteId)).get() as any
+  const user = c.get('user')!
 
-  warmCacheAsync(siteId, site.domain, entries as any[], {
+  warmCacheAsync(user.id, siteId, site.domain, entries as any[], {
     providerIds: opts.providerIds,
     concurrency: opts.concurrency || 1,
     interval: opts.interval ?? 10,
     selector: opts.selector,
-    }).catch((err: unknown) => {
+  }).catch((err: unknown) => {
     console.error('[warm] background error:', err)
   })
 
-  const user = c.get('user')!
   insertAuditLog(db, { id: nanoid(), userId: user.id, action: 'cache.warm', details: { siteId, path: undefined, selector: opts.selector } })
   return c.json({ code: 0, data: { total: entries.length, message: `Warming ${entries.length} entries` } })
 })
 
-async function warmCacheAsync(siteId: string, domain: string, entries: any[], options?: { providerIds?: string[]; concurrency?: number; interval?: number; selector?: string }) {
+async function warmCacheAsync(userId: string, siteId: string, domain: string, entries: any[], options?: { providerIds?: string[]; concurrency?: number; interval?: number; selector?: string }) {
   const { generateComments } = await import('../routes/widget.js')
 
   const concurrency = options?.concurrency || 1
@@ -1143,6 +1190,13 @@ async function warmCacheAsync(siteId: string, domain: string, entries: any[], op
     fireWebhook(siteId, 'cache.warm_completed', { site: siteId, total: entries.length, success: successCount, fail: failCount })
   } catch (err) {
     console.error('[webhook] Failed to fire cache.warm_completed:', err)
+  }
+  
+  const { createNotification } = await import('../services/notification.js')
+  if (failCount > 0) {
+    createNotification(userId, 'warning', '评论生成部分完成', `成功生成 ${successCount} 条，失败 ${failCount} 条`, siteId)
+  } else {
+    createNotification(userId, 'success', '评论生成全部完成', `成功生成 ${successCount} 条评论`, siteId)
   }
 }
 

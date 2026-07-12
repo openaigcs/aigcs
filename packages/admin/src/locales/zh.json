@@ -1,4 +1,9 @@
 {
+  "notifications": {
+    "title": "通知中心",
+    "empty": "暂无通知",
+    "markAllRead": "全部标为已读"
+  },
   "nav": {
     "providers": "AI 服务商",
     "sites": "站点",
@@ -644,7 +649,7 @@
   },
   "fedi": {
     "badge": "联邦",
-    "title": "联邦设置",
+    "title": "联邦插件设置",
     "addBinding": "添加绑定",
     "instanceType": "实例类型",
     "instanceUrl": "联邦实例",

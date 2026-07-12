@@ -81,8 +81,8 @@ function SiteDetailPage() {
   if (!site) return <div className="text-gray-500 dark:text-gray-400">{t('sites.siteNotFound')}</div>
 
   const tabKeys = mastodonEnabled
-    ? (['content', 'comments', 'fediverse', ...(nativePluginEnabled ? ['comment-settings'] : []), 'providers', 'settings', 'other'] as const)
-    : (['content', 'comments', ...(nativePluginEnabled ? ['comment-settings'] : []), 'providers', 'settings', 'other'] as const)
+    ? (['content', 'comments', 'providers', 'settings', 'fediverse', ...(nativePluginEnabled ? ['comment-settings'] : []), 'other'] as const)
+    : (['content', 'comments', 'providers', 'settings', ...(nativePluginEnabled ? ['comment-settings'] : []), 'other'] as const)
   const tabLabels: Record<string, string> = {
     providers: t('sites.providers'),
     content: t('sites.content'),

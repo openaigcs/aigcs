@@ -15,7 +15,7 @@ AIGCS - AI Generated Comments System.
 ![TypeScript](https://img.shields.io/badge/typescript-strict-3178C6)
 
 <p align="center">
-  <img src="./docs/public/preview.png" alt="AIGCS Preview" width="800" />
+  <img src="./assets/preview.png" alt="AIGCS Preview" width="800" />
 </p>
 
 ---
@@ -67,7 +67,7 @@ AIGCS.init({
 
 ## Documentation
 
-Full documentation is available at [docs.aigcs.chat](https://docs.aigcs.chat), covering:
+Full documentation is available at [docs.aigcs.social](https://docs.aigcs.social), covering:
 
 - Installation (Docker, manual, EdgeOne Makers, Cloudflare Workers, Vercel)
 - Configuration reference
@@ -154,7 +154,7 @@ pnpm build
 pnpm dev
 ```
 
-See [docs.aigcs.chat](https://docs.aigcs.chat) for full development guide.
+See [docs.aigcs.social](https://docs.aigcs.social) for full development guide.
 
 ## License
 

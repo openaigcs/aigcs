@@ -174,7 +174,7 @@ export const Route = createRoute({
 
         <Card className="mb-6">
           <p className="text-sm text-blue-700 dark:text-blue-300">
-            {t('pluginsPage.info')} <a href="https://docs.aigcs.chat/plugin" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500">https://docs.aigcs.chat/plugin</a>
+            {t('pluginsPage.info')} <a href="https://docs.aigcs.social/plugin" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500">https://docs.aigcs.social/plugin</a>
           </p>
         </Card>
 

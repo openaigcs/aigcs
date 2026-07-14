@@ -12,7 +12,7 @@ AIGCS - AI Generated Comments System.
 ![TypeScript](https://img.shields.io/badge/typescript-strict-3178C6)
 
 <p align="center">
-  <img src="./docs/public/preview.png" alt="AIGCS 预览图" width="800" />
+  <img src="./assets/preview.png" alt="AIGCS 预览图" width="800" />
 </p>
 
 ---
@@ -64,7 +64,7 @@ AIGCS.init({
 
 ## 文档
 
-完整文档请访问 [docs.aigcs.chat](https://docs.aigcs.chat)，包括：
+完整文档请访问 [docs.aigcs.social](https://docs.aigcs.social)，包括：
 
 - 安装指南（Docker、手动、EdgeOne Makers、Cloudflare Workers、Vercel）
 - 配置参考
@@ -151,7 +151,7 @@ pnpm build
 pnpm dev
 ```
 
-完整开发指南请访问 [docs.aigcs.chat](https://docs.aigcs.chat)。
+完整开发指南请访问 [docs.aigcs.social](https://docs.aigcs.social)。
 
 ## 许可证
 

@@ -215,14 +215,15 @@ class AIGCSWidget extends HTMLElement {
     return this.shadow.querySelector('#content') as HTMLElement
   }
 
-  private async fetchComments() {
+  private async fetchComments(force = false) {
     const el = this.getContentEl()
     if (!el) return
 
     try {
       const base = this.serverUrl || ''
       const generate = this.autoGenerate ? '' : '&generate=false'
-      const url = `${base}/api/widget/${this.domain}/comments?path=${encodeURIComponent(this.path)}${generate}&_v=${this.visitorId}`
+      let url = `${base}/api/widget/${this.domain}/comments?path=${encodeURIComponent(this.path)}${generate}&_v=${this.visitorId}`
+      if (force) url += `&_t=${Date.now()}`
       const res = await fetch(url, {
         headers: this.etag ? { 'If-None-Match': this.etag } : {},
       })

@@ -634,9 +634,6 @@ router.post('/:domain/comment/:id/request-delete', async (c) => {
   })()
   const locale = c.req.query('locale') || 'en'
   const unsubscribeText = locale?.startsWith('zh') ? 'Unsubscribe（取消订阅）' : 'Unsubscribe'
-  if (isUnsubscribed(raw, body.email.toLowerCase(), site.id)) {
-    return c.json({ code: 0, message: '验证码已发送到您的邮箱' })
-  }
 
   // Send email with code FIRST, then store in DB
   try {

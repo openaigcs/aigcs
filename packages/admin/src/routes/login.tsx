@@ -91,7 +91,7 @@ export const Route = createRoute({
               captchaId: siteKey,
               product: 'bind',
             }, (captchaObj: any) => {
-              captchaObj.onReady(() => captchaObj.verify())
+              captchaObj.onReady(() => captchaObj.showCaptcha())
               captchaObj.onSuccess(() => {
                 const result = captchaObj.getValidate()
                 setCaptchaToken(JSON.stringify(result))

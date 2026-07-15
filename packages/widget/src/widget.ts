@@ -753,13 +753,12 @@ class AIGCSWidget extends HTMLElement {
   private renderGeetest(container: HTMLElement, siteKey: string) {
     const render = () => {
       const win = window as any
-      container.innerHTML = '<div id="geetest-captcha"></div>'
       if (win.initGeetest4) {
         win.initGeetest4({
           captchaId: siteKey,
           product: 'bind',
         }, (captchaObj: any) => {
-          captchaObj.onReady(() => captchaObj.verify())
+          captchaObj.onReady(() => captchaObj.showCaptcha())
           captchaObj.onSuccess(() => {
             this.captchaToken = JSON.stringify(captchaObj.getValidate())
             // Automatically submit after captcha
@@ -942,7 +941,7 @@ class AIGCSWidget extends HTMLElement {
       const json = await res.json()
       if (json.code === 0) {
         this.editCommentId = ''
-        this.fetchComments()
+        this.fetchComments(true)
       }
     } catch {}
   }
@@ -1185,7 +1184,7 @@ class AIGCSWidget extends HTMLElement {
           contentInput.value = ''
           this.pinRequired = false
           this.captchaToken = ''
-          setTimeout(() => this.fetchComments(), 1500)
+          setTimeout(() => this.fetchComments(true), 1500)
         }
       } else {
         statusEl.textContent = json.data?.error || this.t('formError')

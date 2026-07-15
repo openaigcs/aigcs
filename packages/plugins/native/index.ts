@@ -333,7 +333,7 @@ formPosition: getPluginSetting('formPosition') || 'top',
                       unsubscribeUrl,
                       unsubscribeText,
                     }),
-                  )
+                  ).catch(err => console.warn('[plugin:native] Failed to send notification email:', err))
                 }
               }
             }
@@ -394,7 +394,7 @@ formPosition: getPluginSetting('formPosition') || 'top',
                     sendEmail(parentRow.author_email,
                       `[AIGCS] ${ctx.authorName} replied to your comment`,
                       emailBody,
-                    ).catch(err => console.warn('[plugin:native] Failed to send global SMTP reply notification:', err))
+                    ).catch(err => console.warn('[plugin:native] Failed to send reply notification email:', err))
                   })
                 }
               }

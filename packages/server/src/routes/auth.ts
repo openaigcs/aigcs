@@ -202,7 +202,7 @@ router.post('/register', zValidator('json', registerSchema), async (c) => {
         data: { email },
         unsubscribeUrl,
         unsubscribeText: emailLocale === 'zh' ? '取消订阅' : 'Unsubscribe',
-      }))
+      })).catch(err => console.error('[email] Failed to send welcome email:', err))
     }
   } catch (err) {
     console.error('[auth] Welcome email failed:', err)

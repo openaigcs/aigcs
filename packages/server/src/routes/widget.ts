@@ -336,7 +336,7 @@ router.get('/:domain/comments', async (c) => {
     }
   })
 
-  const etag = md5(JSON.stringify({ comments: commentDTOs, config: responseConfig }))
+  const etag = md5(JSON.stringify({ comments: commentDTOs, visitorComments: enrichedVisitorComments, config: responseConfig }))
 
   c.header('ETag', `"${etag}"`)
   c.header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=86400')
@@ -1023,7 +1023,7 @@ async function generateComments(siteId: string, path: string, siteDomain?: strin
             unsubscribeUrl,
             unsubscribeText,
           }),
-        )
+        ).catch(err => console.error('[email] Failed to send comment-generated email:', err))
       }
     }
   } catch (err) {

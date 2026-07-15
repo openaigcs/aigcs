@@ -13,10 +13,11 @@ export async function sendEmail(to: string, subject: string, html: string) {
     return
   }
 
+  const port = Number(config.smtp_port) || 587
   const transporter = nodemailer.createTransport({
     host: config.smtp_host as string,
-    port: (config.smtp_port as number) || 587,
-    secure: (config.smtp_port as number) === 465,
+    port,
+    secure: port === 465,
     auth: {
       user: (config.smtp_user as string) || '',
       pass: decrypt((config.smtp_pass as string) || ''),

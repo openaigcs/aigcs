@@ -722,7 +722,7 @@ class AIGCSWidget extends HTMLElement {
         })
       } else if (globalKey === 'CAPTCHA' && win.CAPTCHA) {
         container.innerHTML = '<div id="cap-captcha"></div>'
-        win.CAPTCHA.render('cap-captcha', {
+        win.CAPTCHA.render(container.querySelector('#cap-captcha'), {
           siteKey, callback: (token: string) => { this.captchaToken = token },
         })
       }
@@ -759,7 +759,7 @@ class AIGCSWidget extends HTMLElement {
           captchaId: siteKey,
           product: 'popup',
         }, (captchaObj: any) => {
-          captchaObj.appendTo('#geetest-captcha')
+          captchaObj.appendTo(container.querySelector('#geetest-captcha'))
           captchaObj.onReady(() => captchaObj.verify())
           captchaObj.onSuccess(() => {
             this.captchaToken = JSON.stringify(captchaObj.getValidate())

@@ -89,9 +89,8 @@ export const Route = createRoute({
           if (win.initGeetest4) {
             win.initGeetest4({
               captchaId: siteKey,
-              product: 'popup',
+              product: 'bind',
             }, (captchaObj: any) => {
-              captchaObj.appendTo('#geetest-captcha')
               captchaObj.onReady(() => captchaObj.verify())
               captchaObj.onSuccess(() => {
                 const result = captchaObj.getValidate()

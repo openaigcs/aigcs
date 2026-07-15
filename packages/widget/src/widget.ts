@@ -757,12 +757,14 @@ class AIGCSWidget extends HTMLElement {
       if (win.initGeetest4) {
         win.initGeetest4({
           captchaId: siteKey,
-          product: 'popup',
+          product: 'bind',
         }, (captchaObj: any) => {
-          captchaObj.appendTo(container.querySelector('#geetest-captcha'))
           captchaObj.onReady(() => captchaObj.verify())
           captchaObj.onSuccess(() => {
             this.captchaToken = JSON.stringify(captchaObj.getValidate())
+            // Automatically submit after captcha
+            const submitBtn = this.shadow.getElementById('aigcs-form-submit') as HTMLButtonElement
+            if (submitBtn) submitBtn.click()
           })
         })
       }

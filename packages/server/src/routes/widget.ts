@@ -765,37 +765,43 @@ async function verifyWidgetCaptcha(token: string, provider: string): Promise<boo
   if (provider === 'turnstile') {
     const secret = (config.turnstile_secret_key as string) || ''
     if (!secret) return false
-    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret, response: token }),
-    })
-    const data = await res.json() as any
-    return data.success === true
+      try {
+        const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secret, response: token }),
+        })
+        const data = await res.json() as { success?: boolean }
+        return !!data.success
+      } catch { return false }
   }
   if (provider === 'recaptcha') {
     const secret = (config.recaptcha_secret_key as string) || ''
     if (!secret) return false
     const params = new URLSearchParams({ secret, response: token })
-    const res = await fetch('https://www.google.com/recaptcha/api/siteverify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params,
-    })
-    const data = await res.json() as any
-    return data.success === true
+      try {
+        const res = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params,
+        })
+        const data = await res.json() as { success?: boolean }
+        return !!data.success
+      } catch { return false }
   }
   if (provider === 'cap') {
     const secret = (config.cap_secret_key as string) || ''
     if (!secret) return false
     const verifyUrl = (config.cap_verify_url as string) || 'https://verify.cap.so/api/verify'
-    const res = await fetch(verifyUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret, token }),
-    })
-    const data = await res.json() as any
-    return data.success === true
+      try {
+        const res = await fetch(verifyUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secret, token }),
+        })
+        const data = await res.json() as { success?: boolean }
+        return !!data.success
+      } catch { return false }
   }
   if (provider === 'altcha') {
     const secret = (config.altcha_secret_key as string) || ''
@@ -812,13 +818,15 @@ async function verifyWidgetCaptcha(token: string, provider: string): Promise<boo
     const secret = (config.hcaptcha_secret_key as string) || ''
     if (!secret) return false
     const params = new URLSearchParams({ secret, response: token })
-    const res = await fetch('https://hcaptcha.com/siteverify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params,
-    })
-    const data = await res.json() as any
-    return data.success === true
+      try {
+        const res = await fetch('https://hcaptcha.com/siteverify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params,
+        })
+        const data = await res.json() as { success?: boolean }
+        return !!data.success
+      } catch { return false }
   }
   return false
 }

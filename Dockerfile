@@ -29,6 +29,7 @@ RUN pnpm --filter @aigcs/core exec tsc && \
     pnpm --filter @aigcs/widget build
 
 RUN npm install -g esbuild && esbuild packages/plugins/native/index.ts --platform=node --format=esm --outfile=packages/plugins/native/index.js && \
+    sed -i 's|packages/server/src|packages/server/dist|g' packages/plugins/native/index.js && \
     pnpm exec esbuild packages/plugins/mastodon/index.ts --bundle --platform=node --format=esm \
       --outfile=packages/plugins/mastodon/index.js \
       --external:@aigcs/core --external:hono --external:drizzle-orm \

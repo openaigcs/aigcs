@@ -471,6 +471,8 @@ export const STYLES = `:host {
 
 .aigcs-fedi-content {
   line-height: 1.6;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
 }
 .aigcs-fedi-content p {
   margin: 0;
@@ -506,7 +508,8 @@ export const STYLES = `:host {
   font-size: 1rem;
   color: var(--text);
   line-height: 1.7;
-  margin-top: 4px;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
 }
 
 .aigcs-comment-content a {

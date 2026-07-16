@@ -901,14 +901,14 @@ z.object({
           let statusId = ''
           if (['misskey', 'sharkey', 'firefish'].includes(instanceType)) {
             const res = await fetch(`${instanceUrl}/api/notes/create`, {
-              method: 'POST', headers, body: JSON.stringify({ text: postText, visibility: 'home' }),
+              method: 'POST', headers, body: JSON.stringify({ text: postText, visibility: 'public' }),
             })
             if (!res.ok) return c.json({ code: 1, message: 'Post failed' }, 502)
             const data = await res.json()
             statusId = data.createdNote?.id || ''
           } else {
             const res = await fetch(`${instanceUrl}/api/v1/statuses`, {
-              method: 'POST', headers, body: JSON.stringify({ status: postText, visibility: 'unlisted' }),
+              method: 'POST', headers, body: JSON.stringify({ status: postText, visibility: 'public' }),
             })
             if (!res.ok) return c.json({ code: 1, message: 'Post failed' }, 502)
             const data = await res.json()

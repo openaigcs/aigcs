@@ -42,6 +42,7 @@ jobs:
             ${{ env.REGISTRY_GHCR }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
             ${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
             docker.cnb.cool/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+            registry.cn-shanghai.aliyuncs.com/openaigcs/aigcs
           flavor: |
             latest=true
           tags: |
@@ -68,6 +69,13 @@ jobs:
           registry: docker.cnb.cool
           username: ${{ secrets.CNB_USERNAME || 'cnb' }}
           password: ${{ secrets.CNB_TOKEN }}
+
+      - name: Login to Aliyun
+        uses: docker/login-action@v4
+        with:
+          registry: registry.cn-shanghai.aliyuncs.com
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
 
       - name: Build and push
         uses: docker/build-push-action@v7

@@ -247,7 +247,7 @@ router.get('/:domain/comments', async (c) => {
       avatarSvg: providerAvatarMap[c.providerName] || '',
       content: c.content,
       generatedAt: c.generatedAt,
-      showModel: true,
+      showModel: siteSettings.showAiModel ?? true,
       reactions: commentReactionsMap.get(c.id) || {},
       userVoted: commentVotesMap.get(c.id) || [],
     }
@@ -264,6 +264,7 @@ router.get('/:domain/comments', async (c) => {
   const responseConfig: Record<string, unknown> = {
     theme: themeConfig,
     showAiBadge: siteSettings.showAiBadge ?? true,
+    showAiModel: siteSettings.showAiModel ?? true,
     aiBadgePosition: siteSettings.aiBadgePosition || 'nick',
     showFediBadge: (siteSettings.fediConfig?.showBadge ?? true) as boolean,
     enabledCommentPlugins: Array.isArray(siteSettings.commentPlugin) ? siteSettings.commentPlugin : [],

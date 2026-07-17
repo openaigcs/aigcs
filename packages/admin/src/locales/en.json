@@ -246,6 +246,8 @@
     "sortByTime": "By time",
     "sortByPath": "By path",
     "viewContext": "View in content management",
+    "showAiModel": "Show AI Model on AI comments",
+    "showAiModelHint": "Display the AI model name used on AI-generated comments.",
     "showAiBadge": "Show AI Badge on AI comments",
     "showAiBadgeHint": "Display a small AI label on AI-generated comment avatars.",
     "showReactions": "Show Reactions on comments",

@@ -250,6 +250,8 @@
     "sortByPath": "按路径",
     "showHidden": "显示已隐藏",
     "viewContext": "在内容管理中查看上下文",
+    "showAiModel": "AI 评论显示 AI 模型名称",
+    "showAiModelHint": "在 AI 生成评论的昵称/时间旁边显示所使用的 AI 模型名称。",
     "showAiBadge": "AI 评论显示 AI 角标",
     "showAiBadgeHint": "在 AI 生成评论的头像上显示 AI 角标。",
     "showReactions": "评论显示表情反应",

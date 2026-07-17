@@ -228,7 +228,7 @@ export const Route = createRootRoute({
                         </div>
                       )}
                     </div>
-                    <a href="https://github.com/eallion/aigcs" target="_blank" rel="noopener noreferrer" onClick={() => setShowUserMenu(false)} className="block px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <a href="https://github.com/openaigcs/aigcs" target="_blank" rel="noopener noreferrer" onClick={() => setShowUserMenu(false)} className="block px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                       GitHub v{version}
                     </a>
                     <hr className="border-gray-200 dark:border-gray-600 my-1" />

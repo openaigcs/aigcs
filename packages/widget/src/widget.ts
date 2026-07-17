@@ -1164,6 +1164,7 @@ class AIGCSWidget extends HTMLElement {
           statusEl.textContent = this.t('pinError')
           submitBtn.disabled = false
           submitBtn.textContent = this.t('formSubmit')
+          this.captchaToken = ''
           return
         }
         if (json.data?.id) {
@@ -1189,9 +1190,11 @@ class AIGCSWidget extends HTMLElement {
         }
       } else {
         statusEl.textContent = json.data?.error || this.t('formError')
+        this.captchaToken = ''
       }
     } catch {
       statusEl.textContent = this.t('formError')
+      this.captchaToken = ''
     } finally {
       submitBtn.disabled = false
       submitBtn.textContent = this.t('formSubmit')

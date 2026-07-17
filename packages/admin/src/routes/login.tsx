@@ -22,6 +22,13 @@ export const Route = createRoute({
     const captchaContainerRef = useRef<HTMLDivElement>(null)
     const widgetIdRef = useRef<string | number | null>(null)
 
+    const geetestInstanceRef = useRef<any>(null)
+    const formDataRef = useRef({ email: '', username: '', password: '', displayName: '', mode: 'login' })
+
+    useEffect(() => {
+      formDataRef.current = { email, username, password, displayName, mode }
+    }, [email, username, password, displayName, mode])
+
     useEffect(() => {
       fetch('/api/auth/captcha/config')
         .then(r => r.json())
@@ -91,10 +98,23 @@ export const Route = createRoute({
               captchaId: siteKey,
               product: 'bind',
             }, (captchaObj: any) => {
-              captchaObj.onReady(() => captchaObj.showCaptcha())
+              geetestInstanceRef.current = captchaObj
               captchaObj.onSuccess(() => {
                 const result = captchaObj.getValidate()
-                setCaptchaToken(JSON.stringify(result))
+                const tokenStr = JSON.stringify(result)
+                setCaptchaToken(tokenStr)
+                const currentData = formDataRef.current
+                if (currentData.mode === 'login') {
+                  mutation.mutate({ identity: currentData.email, password: currentData.password, captchaToken: tokenStr })
+                } else {
+                  mutation.mutate({ 
+                    email: currentData.email, 
+                    username: currentData.username, 
+                    password: currentData.password, 
+                    displayName: currentData.displayName || undefined, 
+                    captchaToken: tokenStr 
+                  })
+                }
               })
             })
           }
@@ -202,6 +222,12 @@ export const Route = createRoute({
           window.location.href = '/'
         }
       },
+      onError: () => {
+        setCaptchaToken('')
+        if (captchaConfig?.provider === 'geetest' && geetestInstanceRef.current) {
+          geetestInstanceRef.current.reset()
+        }
+      },
     })
 
     const totpMutation = useMutation({
@@ -266,6 +292,12 @@ export const Route = createRoute({
 
           <form onSubmit={(e) => {
             e.preventDefault()
+            if (captchaConfig && captchaConfig.provider === 'geetest') {
+              if (geetestInstanceRef.current) {
+                geetestInstanceRef.current.showCaptcha()
+              }
+              return
+            }
             if (mode === 'login') {
               mutation.mutate({ identity: email, password, captchaToken: captchaToken || undefined })
             } else {

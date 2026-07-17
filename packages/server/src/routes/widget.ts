@@ -825,6 +825,39 @@ async function verifyWidgetCaptcha(token: string, provider: string): Promise<boo
         return !!data.success
       } catch { return false }
   }
+  if (provider === 'geetest') {
+    const secret = (config.geetest_captcha_key as string) || ''
+    const captchaId = (config.geetest_captcha_id as string) || ''
+    if (!secret || !captchaId) return false
+
+    let validateData: Record<string, string>
+    try { validateData = JSON.parse(token) } catch { return false }
+
+    const lot_number = validateData.lot_number || ''
+    if (!lot_number) return false
+
+    try {
+      const { createHmac } = await import('node:crypto')
+      const sign_token = createHmac('sha256', secret).update(lot_number).digest('hex')
+
+      const params = new URLSearchParams({
+        captcha_id: captchaId,
+        lot_number: lot_number,
+        captcha_output: validateData.captcha_output || '',
+        pass_token: validateData.pass_token || '',
+        gen_time: validateData.gen_time || '',
+        sign_token: sign_token,
+      })
+
+      const res = await fetch('https://gcaptcha4.geetest.com/validate?captcha_id=' + captchaId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params,
+      })
+      const data = await res.json() as { result?: string }
+      return data.result === 'success'
+    } catch { return false }
+  }
   return false
 }
 

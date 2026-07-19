@@ -340,7 +340,8 @@ class AIGCSWidget extends HTMLElement {
       const fediGroupOrder = (this.pluginConfig.fediGroupOrder as string) || 'fediFirst'
 
       // Render form at top if configured (skip if replying inline)
-      if (!this.replyToId && formPosition === 'top') {
+      const isNativeEnabled = this.enabledCommentPlugins.length === 0 || this.enabledCommentPlugins.includes('native')
+      if (isNativeEnabled && !this.replyToId && formPosition === 'top') {
         rendered.push(this.renderCommentForm())
       }
 
@@ -429,7 +430,7 @@ class AIGCSWidget extends HTMLElement {
       }
 
       // Render form at bottom (only if not replying inline)
-      if (!this.replyToId && formPosition === 'bottom') {
+      if (isNativeEnabled && !this.replyToId && formPosition === 'bottom') {
         rendered.push(this.renderCommentForm())
       }
     } else {
@@ -632,7 +633,8 @@ class AIGCSWidget extends HTMLElement {
 
     rendered.push(isSoftDeleted ? `<div class="aigcs-comment-collapsed">${this.renderCommentCard(type, node.data)}</div>` : this.renderCommentCard(type, node.data))
 
-    if (this.replyToId === node.data.id) {
+    const isNativeEnabled = this.enabledCommentPlugins.length === 0 || this.enabledCommentPlugins.includes('native')
+    if (isNativeEnabled && this.replyToId === node.data.id) {
       rendered.push(`<div class="aigcs-inline-reply">${this.renderCommentForm()}</div>`)
     }
 

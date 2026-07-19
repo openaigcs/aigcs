@@ -340,7 +340,7 @@ class AIGCSWidget extends HTMLElement {
       const fediGroupOrder = (this.pluginConfig.fediGroupOrder as string) || 'fediFirst'
 
       // Render form at top if configured (skip if replying inline)
-      const isNativeEnabled = this.enabledCommentPlugins.length === 0 || this.enabledCommentPlugins.includes('native')
+      const isNativeEnabled = this.enabledCommentPlugins.includes('native')
       if (isNativeEnabled && !this.replyToId && formPosition === 'top') {
         rendered.push(this.renderCommentForm())
       }
@@ -351,7 +351,6 @@ class AIGCSWidget extends HTMLElement {
         fedi: 'mastodon',
       }
       const isSourceEnabled = (source?: string) => {
-        if (this.enabledCommentPlugins.length === 0) return true
         if (!source) return this.enabledCommentPlugins.includes('native')
         const plugin = sourcePluginMap[source] || source
         return this.enabledCommentPlugins.includes(plugin)
@@ -633,7 +632,7 @@ class AIGCSWidget extends HTMLElement {
 
     rendered.push(isSoftDeleted ? `<div class="aigcs-comment-collapsed">${this.renderCommentCard(type, node.data)}</div>` : this.renderCommentCard(type, node.data))
 
-    const isNativeEnabled = this.enabledCommentPlugins.length === 0 || this.enabledCommentPlugins.includes('native')
+    const isNativeEnabled = this.enabledCommentPlugins.includes('native')
     if (isNativeEnabled && this.replyToId === node.data.id) {
       rendered.push(`<div class="aigcs-inline-reply">${this.renderCommentForm()}</div>`)
     }

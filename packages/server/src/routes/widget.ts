@@ -267,7 +267,7 @@ router.get('/:domain/comments', async (c) => {
     showAiModel: siteSettings.showAiModel ?? true,
     aiBadgePosition: siteSettings.aiBadgePosition || 'nick',
     showFediBadge: (siteSettings.fediConfig?.showBadge ?? true) as boolean,
-    enabledCommentPlugins: Array.isArray(siteSettings.commentPlugin) ? siteSettings.commentPlugin : [],
+    enabledCommentPlugins: Array.isArray(siteSettings.commentPlugin) ? siteSettings.commentPlugin : ['native'],
     showReactions: siteSettings.showReactions ?? false,
     reactionTypes: reactionTypeList,
     ...(fetchCtx.config || {}),

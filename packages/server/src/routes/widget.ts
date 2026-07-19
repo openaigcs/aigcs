@@ -340,7 +340,7 @@ router.get('/:domain/comments', async (c) => {
   const etag = md5(JSON.stringify({ comments: commentDTOs, visitorComments: enrichedVisitorComments, config: responseConfig }))
 
   c.header('ETag', `"${etag}"`)
-  c.header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=86400')
+  c.header('Cache-Control', 'public, max-age=10, s-maxage=60, must-revalidate, stale-while-revalidate=86400')
 
   const ifNoneMatch = c.req.header('If-None-Match')
   if (ifNoneMatch === `"${etag}"`) {

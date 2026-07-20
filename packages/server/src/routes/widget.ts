@@ -237,11 +237,20 @@ router.get('/:domain/comments', async (c) => {
     }
   }
 
+  const providersList = db.select().from(providers).where(eq(providers.siteId, site.id)).all() as any[]
+  const providerModelMap = new Map<string, string>()
+  for (const p of providersList) {
+    if (p.modelDisplayName) {
+      providerModelMap.set(p.displayName, p.modelDisplayName)
+    }
+  }
+
   const commentDTOs = (commentList as any[]).map((c: any) => {
+    const displayModel = providerModelMap.get(c.providerName) || c.model
     return {
       id: c.id,
       providerName: c.providerName,
-      model: c.model,
+      model: displayModel,
       authorName: c.authorName,
       authorAvatar: c.authorAvatar,
       avatarSvg: providerAvatarMap[c.providerName] || '',

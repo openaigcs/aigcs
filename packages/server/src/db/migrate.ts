@@ -245,6 +245,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
   try { raw.exec("ALTER TABLE reaction_types ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1"); } catch {}
   // Add avatar_svg column to existing databases
   try { raw.exec("ALTER TABLE providers ADD COLUMN avatar_svg TEXT NOT NULL DEFAULT ''"); } catch {}
+  try { raw.exec("ALTER TABLE providers ADD COLUMN model_display_name TEXT NOT NULL DEFAULT ''"); } catch {}
   // Add notify_new_registration column to existing databases
   try { raw.exec("ALTER TABLE system_config ADD COLUMN notify_new_registration INTEGER NOT NULL DEFAULT 0"); } catch {}
   // Add site_title and site_favicon to existing databases
@@ -656,6 +657,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     try { await connection.execute("ALTER TABLE reaction_types ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT TRUE"); } catch {}
     // Add avatar_svg column to existing databases
     try { await connection.execute("ALTER TABLE providers ADD COLUMN avatar_svg VARCHAR(1024) NOT NULL DEFAULT ''"); } catch {}
+    try { await connection.execute("ALTER TABLE providers ADD COLUMN model_display_name VARCHAR(255) NOT NULL DEFAULT ''"); } catch {}
     // Add notify_new_registration column to existing databases
     try { await connection.execute("ALTER TABLE system_config ADD COLUMN notify_new_registration BOOLEAN NOT NULL DEFAULT FALSE"); } catch {}
     // Add site_title and site_favicon to existing databases
@@ -1009,6 +1011,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
     try { await client.query("ALTER TABLE reaction_types ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT TRUE"); } catch {}
     // Add avatar_svg column to existing databases
     try { await client.query("ALTER TABLE providers ADD COLUMN avatar_svg VARCHAR(1024) NOT NULL DEFAULT ''"); } catch {}
+    try { await client.query("ALTER TABLE providers ADD COLUMN model_display_name TEXT NOT NULL DEFAULT ''"); } catch {}
     // Add notify_new_registration column to existing databases
     try { await client.query("ALTER TABLE system_config ADD COLUMN notify_new_registration BOOLEAN NOT NULL DEFAULT FALSE"); } catch {}
     // Add site_title and site_favicon to existing databases

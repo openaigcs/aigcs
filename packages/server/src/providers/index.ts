@@ -11,7 +11,7 @@ const builtinProviders = new Map<string, AIProviderInterface>([
   ['openai', openaiProvider],
   ['claude', claudeProvider],
   ['ollama', createOllamaProvider()],
-  ['qrok', createOpenAICompatibleProvider('qrok', 'Qrok')],
+  ['grok', createOpenAICompatibleProvider('grok', 'Grok')],
   ['deepseek', createOpenAICompatibleProvider('deepseek', 'DeepSeek')],
   ['doubao', createOpenAICompatibleProvider('doubao', '豆包')],
   ['hunyuan', createOpenAICompatibleProvider('hunyuan', '混元')],

@@ -679,7 +679,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
   const [addForm, setAddForm] = useState({
     name: '', displayName: '', providerType: 'native', apiKey: '',
     apiEndpoint: '', model: '', enabled: true, showOnFrontend: true,
-    sortWeight: 0, promptTemplateId: '', avatarSvg: '',
+    sortWeight: 0, promptTemplateId: '', avatarSvg: '', modelDisplayName: '',
   })
   const { data: providers, isLoading, isError, error } = useQuery({
     queryKey: ['site-providers', siteId],
@@ -763,7 +763,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site-providers', siteId] })
       setShowAddForm(false)
-      setAddForm({ name: '', displayName: '', providerType: 'native', apiKey: '', apiEndpoint: '', model: '', enabled: true, showOnFrontend: true, sortWeight: 0, promptTemplateId: '', avatarSvg: '' })
+      setAddForm({ name: '', displayName: '', providerType: 'native', apiKey: '', apiEndpoint: '', model: '', enabled: true, showOnFrontend: true, sortWeight: 0, promptTemplateId: '', avatarSvg: '', modelDisplayName: '' })
     },
   })
 
@@ -796,6 +796,16 @@ function ProvidersTab({ siteId }: { siteId: string }) {
           <div className="flex gap-4 whitespace-nowrap">
             <label className="flex items-center gap-2 text-sm dark:text-gray-300"><input type="checkbox" checked={addForm.enabled} onChange={(e) => setAddForm({ ...addForm, enabled: e.target.checked })} /> {t('sites.enabled')}</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={addForm.showOnFrontend} onChange={(e) => setAddForm({ ...addForm, showOnFrontend: e.target.checked })} /> {t('sites.showOnFrontend')}</label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.model')}</label>
+              <Input value={addForm.model || ''} onChange={(v) => setAddForm({ ...addForm, model: v })} placeholder="e.g. gpt-4o-mini" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.modelDisplayName')}</label>
+              <Input value={addForm.modelDisplayName || ''} onChange={(v) => setAddForm({ ...addForm, modelDisplayName: v })} placeholder={t('sites.modelDisplayNamePlaceholder')} />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.promptTemplate')}</label>
@@ -833,6 +843,10 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                     <div>
                       <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.model')}</label>
                       <Input value={editForm.model || ''} onChange={(v) => setEditForm({ ...editForm, model: v })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.modelDisplayName')}</label>
+                      <Input value={editForm.modelDisplayName || ''} onChange={(v) => setEditForm({ ...editForm, modelDisplayName: v })} placeholder={t('sites.modelDisplayNamePlaceholder')} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.apiEndpoint')}</label>

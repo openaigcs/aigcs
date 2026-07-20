@@ -279,6 +279,7 @@ router.post('/sites/:siteId/providers', zValidator('json', z.object({
   showOnFrontend: z.boolean().default(true),
   sortWeight: z.number().default(0),
   promptTemplateId: z.string().optional(),
+  modelDisplayName: z.string().optional(),
 })), async (c) => {
   const user = c.get('user')!
   const db = getDb()
@@ -448,7 +449,7 @@ router.get('/builtin-providers', async (c) => {
     { name: 'gemini', displayName: 'Gemini', type: 'native', endpoint: 'https://generativelanguage.googleapis.com/v1', auth: 'API Key (URL param)', defaultModel: 'gemini-2.5-flash', weight: 10 },
     { name: 'openai', displayName: 'OpenAI', type: 'native', endpoint: 'https://api.openai.com/v1', auth: 'Bearer Token', defaultModel: 'gpt-4o-mini', weight: 20 },
     { name: 'claude', displayName: 'Claude', type: 'native', endpoint: 'https://api.anthropic.com/v1', auth: 'x-api-key Header', defaultModel: 'claude-sonnet-4', weight: 30 },
-    { name: 'qrok', displayName: 'Qrok', type: 'native', endpoint: 'https://api.x.ai/v1', auth: 'Bearer Token', defaultModel: 'grok-2-latest', weight: 40 },
+    { name: 'grok', displayName: 'Grok', type: 'native', endpoint: 'https://api.x.ai/v1', auth: 'Bearer Token', defaultModel: 'grok-2-latest', weight: 40 },
     { name: 'deepseek', displayName: 'DeepSeek', type: 'openai-compatible', endpoint: 'https://api.deepseek.com', auth: 'Bearer Token', defaultModel: 'deepseek-chat', weight: 50 },
     { name: 'doubao', displayName: '豆包', type: 'openai-compatible', endpoint: 'https://ark.cn-beijing.volces.com/api/v3', auth: 'Bearer Token', defaultModel: 'doubao-1.5-pro', weight: 60 },
     { name: 'hunyuan', displayName: '混元', type: 'openai-compatible', endpoint: 'https://api.hunyuan.cloud.tencent.com/v1', auth: 'Bearer Token', defaultModel: 'hunyuan-turbo', weight: 70 },

@@ -13,6 +13,7 @@ export const providers = sqliteTable('providers', {
   apiEndpoint: text('api_endpoint').notNull().default(''),
   models: text('models', { mode: 'json' }).notNull().default([]),
   model: text('model').notNull().default(''),
+  modelDisplayName: text('model_display_name').notNull().default(''),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   showOnFrontend: integer('show_on_frontend', { mode: 'boolean' }).notNull().default(true),
   sortWeight: integer('sort_weight').notNull().default(0),

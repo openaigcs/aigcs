@@ -814,6 +814,9 @@ function ProvidersTab({ siteId }: { siteId: string }) {
               {prompts?.map((pt: any) => <option key={pt.id} value={pt.id}>{pt.name}</option>)}
             </Select>
           </div>
+          {createMutation.isError && (
+            <p className="text-sm text-red-500 mb-1">{(createMutation.error as any)?.message || '添加失败'}</p>
+          )}
           <PrimaryButton type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? t('common.loading') : t('common.add')}</PrimaryButton>
         </form>
       )}
@@ -878,6 +881,9 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                       {prompts?.map((pt: any) => <option key={pt.id} value={pt.id}>{pt.name}</option>)}
                     </Select>
                   </div>
+                  {saveEditMutation.isError && (
+                    <p className="text-sm text-red-500 mb-1">{(saveEditMutation.error as any)?.message || '保存失败'}</p>
+                  )}
                   <div className="flex gap-2">
                     <PrimaryButton type="submit">{t('common.save')}</PrimaryButton>
                     <SecondaryButton onClick={() => setEditingId(null)}>{t('common.cancel')}</SecondaryButton>
@@ -1334,13 +1340,22 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
           <option value="time">{t('sites.sortByTime')}</option>
           <option value="path">{t('sites.sortByPath')}</option>
         </select>
-        <label className="flex items-center gap-1.5 text-sm dark:text-gray-300 whitespace-nowrap cursor-pointer">
-          <input type="checkbox" checked={showHidden} onChange={() => { setShowHidden(!showHidden); setPage(1) }} />
-          {t('sites.showHidden')}
-        </label>
+        {type === 'fedi' && (
+          <button
+            type="button"
+            onClick={() => { setShowHidden(!showHidden); setPage(1) }}
+            className={`cursor-pointer whitespace-nowrap px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium ${
+              showHidden
+                ? 'bg-blue-100 dark:bg-blue-900/50 border border-blue-500 text-blue-700 dark:text-blue-300'
+                : 'bg-gray-100 dark:bg-gray-700 border border-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+          >
+            {t('sites.showHidden')}
+          </button>
+        )}
 
         {isSpecificAiProvider && (
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-2">
             {deleteAllCommentsResult !== null && (
               <span className="text-green-600 text-sm">
                 {t('sites.deleteCommentsSuccess', { count: deleteAllCommentsResult })}
@@ -1364,7 +1379,7 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
               </div>
             ) : (
               <DangerButton onClick={() => setConfirmDeleteAllByProvider(true)}>
-                删除全部评论
+                {t('sites.deleteCommentsByProvider', { provider: type })}
               </DangerButton>
             )}
           </div>

@@ -14,6 +14,7 @@ import { nanoid } from 'nanoid'
 import { requireAuth, authGuard, requireRole } from '../middleware/auth.js'
 import { fireWebhook } from '../services/webhook.js'
 import { encrypt, decrypt, mask } from '../services/encryption.js'
+import { getBuiltinProviderNames } from '../providers/index.js'
 import { JSDOM } from 'jsdom'
 
 const router = new Hono()
@@ -289,27 +290,41 @@ router.post('/sites/:siteId/providers', zValidator('json', z.object({
   const site = db.select().from(sites).where(and(eq(sites.id, siteId), eq(sites.userId, user.id))).get()
   if (!site) throw new HTTPException(404, { message: 'Site not found' })
 
+  // Prevent duplicate AI providers on the same site
+  const builtinNames = getBuiltinProviderNames()
+  if (builtinNames.includes(body.name)) {
+    const existing = db.select().from(providers).where(and(eq(providers.siteId, siteId), eq(providers.name, body.name))).get()
+    if (existing) {
+      throw new HTTPException(400, { message: 'AI provider already exists for this site' })
+    }
+  }
+  const existingDisplayName = db.select().from(providers).where(and(eq(providers.siteId, siteId), eq(providers.displayName, body.displayName))).get()
+  if (existingDisplayName) {
+    throw new HTTPException(400, { message: 'Provider with this display name already exists' })
+  }
+
   // Normalize: set empty promptTemplateId to null to avoid FK error
   if (!body.promptTemplateId) (body as any).promptTemplateId = null
 
   const raw = getRawDb() as any
   const id = nanoid()
 
-  // If apiKey/model not provided, try to get from global provider-defaults
+  // If apiKey/model/apiEndpoint not provided, try to get from global provider-defaults
   let apiKey = body.apiKey
   let model = body.model
-  if (!apiKey || !model) {
-    const row = raw.prepare("SELECT provider_defaults FROM system_config WHERE id = 'global'").get() as { provider_defaults: string | null } | undefined
-    if (row?.provider_defaults) {
-      try {
-        const defaults = JSON.parse(row.provider_defaults)
-        const def = defaults[body.name]
-        if (def) {
-          if (!apiKey && def.apiKey) apiKey = def.apiKey
-          if (!model && def.model) model = def.model
-        }
-      } catch {}
-    }
+  let apiEndpoint = body.apiEndpoint
+  
+  const row = raw.prepare("SELECT provider_defaults FROM system_config WHERE id = 'global'").get() as { provider_defaults: string | null } | undefined
+  if (row?.provider_defaults) {
+    try {
+      const defaults = JSON.parse(row.provider_defaults)
+      const def = defaults[body.name]
+      if (def) {
+        if (!apiKey && def.apiKey) apiKey = def.apiKey
+        if (!model && def.model) model = def.model
+        if (!apiEndpoint && def.apiEndpoint) apiEndpoint = def.apiEndpoint
+      }
+    } catch {}
   }
 
   db.insert(providers).values({
@@ -317,9 +332,59 @@ router.post('/sites/:siteId/providers', zValidator('json', z.object({
     id,
     siteId,
     apiKey: encrypt(apiKey),
+    apiEndpoint,
+    model,
     enabled: Number(body.enabled),
     showOnFrontend: Number(body.showOnFrontend),
   } as any).run()
+
+  // Re-bind old comments to this provider if any exist
+  const oldDisplayNames = new Set<string>()
+  const builtinDefaults: Record<string, string> = {
+    gemini: 'Gemini',
+    openai: 'OpenAI',
+    claude: 'Claude',
+    grok: 'Grok',
+    deepseek: 'DeepSeek',
+    xiaomi: '小米大模型',
+    doubao: '豆包',
+    hunyuan: '混元',
+    quark: '夸克',
+    qwen: '千问',
+    glm: '智谱GLM',
+    minimax: 'MiniMax',
+    kimi: 'Kimi',
+    ollama: 'Ollama'
+  }
+  const defName = builtinDefaults[body.name]
+  if (defName) oldDisplayNames.add(defName)
+
+  try {
+    const deletedLogs = db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, 'provider.delete'))
+      .all() as any[]
+    for (const log of deletedLogs) {
+      try {
+        const details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details
+        if (details && details.siteId === siteId && details.name === body.name && details.displayName) {
+          oldDisplayNames.add(details.displayName)
+        }
+      } catch {}
+    }
+  } catch (err) {
+    console.error('[provider.rebind] Failed to read deleted logs:', err)
+  }
+
+  for (const oldName of oldDisplayNames) {
+    if (oldName && oldName !== body.displayName) {
+      db.update(comments)
+        .set({ providerName: body.displayName })
+        .where(and(eq(comments.siteId, siteId), eq(comments.providerName, oldName)))
+        .run()
+    }
+  }
 
   insertAuditLog(db, {
     id: nanoid(),
@@ -347,8 +412,30 @@ router.patch('/sites/:siteId/providers/:providerId', async (c) => {
   const site = db.select().from(sites).where(and(eq(sites.id, siteId), eq(sites.userId, user.id))).get()
   if (!site) throw new HTTPException(404, { message: 'Site not found' })
 
+  const oldProvider = db.select().from(providers).where(and(eq(providers.id, providerId), eq(providers.siteId, siteId))).get() as any
+  if (!oldProvider) throw new HTTPException(404, { message: 'Provider not found' })
+
+  if (body.displayName) {
+    const existingDisplayName = db.select().from(providers).where(and(
+      eq(providers.siteId, siteId),
+      eq(providers.displayName, body.displayName as string),
+      sql`${providers.id} != ${providerId}`
+    )).get()
+    if (existingDisplayName) {
+      throw new HTTPException(400, { message: 'Provider with this display name already exists' })
+    }
+  }
+
   if (body.apiKey !== undefined && typeof body.apiKey === 'string' && !body.apiKey.startsWith('****')) body.apiKey = encrypt(body.apiKey as string)
   db.update(providers).set(body).where(and(eq(providers.id, providerId), eq(providers.siteId, siteId))).run()
+
+  // Sync historical comments displayName if renamed
+  if (body.displayName && body.displayName !== oldProvider.displayName) {
+    db.update(comments)
+      .set({ providerName: body.displayName as string })
+      .where(and(eq(comments.siteId, siteId), eq(comments.providerName, oldProvider.displayName)))
+      .run()
+  }
 
   insertAuditLog(db, {
     id: nanoid(),
@@ -404,7 +491,7 @@ router.delete('/sites/:siteId/providers/:providerId', async (c) => {
   if (!provider) throw new HTTPException(404, { message: 'Provider not found' })
   db.delete(providers).where(eq(providers.id, providerId)).run()
   const user = c.get('user')!
-  insertAuditLog(db, { id: nanoid(), userId: user.id, action: 'provider.delete', details: { siteId, providerId, name: provider.name } })
+  insertAuditLog(db, { id: nanoid(), userId: user.id, action: 'provider.delete', details: { siteId, providerId, name: provider.name, displayName: provider.displayName } })
   return c.json({ code: 0 })
 })
 
@@ -451,6 +538,7 @@ router.get('/builtin-providers', async (c) => {
     { name: 'claude', displayName: 'Claude', type: 'native', endpoint: 'https://api.anthropic.com/v1', auth: 'x-api-key Header', defaultModel: 'claude-sonnet-4', weight: 30 },
     { name: 'grok', displayName: 'Grok', type: 'native', endpoint: 'https://api.x.ai/v1', auth: 'Bearer Token', defaultModel: 'grok-2-latest', weight: 40 },
     { name: 'deepseek', displayName: 'DeepSeek', type: 'openai-compatible', endpoint: 'https://api.deepseek.com', auth: 'Bearer Token', defaultModel: 'deepseek-chat', weight: 50 },
+    { name: 'xiaomi', displayName: '小米大模型', type: 'openai-compatible', endpoint: 'https://api.xiaomimimo.com/v1', auth: 'Bearer Token', defaultModel: 'mimo-v2.5', weight: 55 },
     { name: 'doubao', displayName: '豆包', type: 'openai-compatible', endpoint: 'https://ark.cn-beijing.volces.com/api/v3', auth: 'Bearer Token', defaultModel: 'doubao-1.5-pro', weight: 60 },
     { name: 'hunyuan', displayName: '混元', type: 'openai-compatible', endpoint: 'https://api.hunyuan.cloud.tencent.com/v1', auth: 'Bearer Token', defaultModel: 'hunyuan-turbo', weight: 70 },
     { name: 'quark', displayName: '夸克', type: 'openai-compatible', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', auth: 'Bearer Token', defaultModel: 'qwen-turbo', weight: 80 },

@@ -193,6 +193,7 @@
     "deleteComments": "删除评论",
     "deleteCommentsConfirm": "确定删除此 AI 提供商生成的所有 AI 评论？",
     "deleteCommentsSuccess": "已成功删除该 AI 提供商生成的 {{count}} 条 AI 评论！",
+    "deleteCommentsByProvider": "删除 {{provider}} 的全部评论",
     "modelDisplayName": "模型显示名称",
     "modelDisplayNamePlaceholder": "虚构的模型显示名，前台挂件会展示此名称",
     "noProviders": "暂无提供商。添加您的第一个 AI 提供商。",

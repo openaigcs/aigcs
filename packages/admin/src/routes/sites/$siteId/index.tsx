@@ -708,6 +708,18 @@ function ProvidersTab({ siteId }: { siteId: string }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-providers', siteId] }),
   })
 
+  const [confirmDeleteCommentsId, setConfirmDeleteCommentsId] = useState<string | null>(null)
+  const [deleteCommentsResult, setDeleteCommentsResult] = useState<{ id: string; count: number } | null>(null)
+
+  const deleteCommentsMutation = useMutation({
+    mutationFn: (id: string) =>
+      api(`/api/admin/sites/${siteId}/providers/${id}/delete-comments`, { method: 'POST' }),
+    onSuccess: (res: any, variables: string) => {
+      setDeleteCommentsResult({ id: variables, count: res.data?.deletedCount ?? 0 })
+      setTimeout(() => setDeleteCommentsResult(r => r?.id === variables ? null : r), 4000)
+    },
+  })
+
   const saveEditMutation = useMutation({
     mutationFn: (data: any) => {
       const { id, apiKey, apiEndpoint, ...clean } = data
@@ -871,6 +883,11 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                       {p.providerType} &middot; {p.model || t('sites.noModel')}
                     </p>
+                    {deleteCommentsResult && deleteCommentsResult.id === p.id && (
+                      <p className="text-green-600 text-sm mt-1">
+                        {t('sites.deleteCommentsSuccess', { count: deleteCommentsResult.count })}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
                                         {p.enabled ? (
@@ -895,6 +912,20 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                     </PrimaryButton>
                     {testResult && testResult.id === p.id && testResult.success && <p className="text-green-600 text-sm mt-2">{t('sites.testSuccess')}</p>}
                     {testResult && testResult.id === p.id && !testResult.success && <p className="text-red-500 text-sm mt-2">{t('common.error')}: {testResult.message}</p>}
+                    {confirmDeleteCommentsId === p.id ? (
+                      <div className="flex items-center gap-1">
+                        <DangerButton onClick={() => { deleteCommentsMutation.mutate(p.id); setConfirmDeleteCommentsId(null) }} disabled={deleteCommentsMutation.isPending}>
+                          {t('common.confirm')}
+                        </DangerButton>
+                        <SecondaryButton onClick={() => setConfirmDeleteCommentsId(null)}>
+                          {t('common.cancel')}
+                        </SecondaryButton>
+                      </div>
+                    ) : (
+                      <SecondaryButton onClick={() => setConfirmDeleteCommentsId(p.id)} title={t('sites.deleteCommentsConfirm')}>
+                        {t('sites.deleteComments')}
+                      </SecondaryButton>
+                    )}
                     <SecondaryButton onClick={() => { setEditingId(p.id); setEditForm({ ...p, apiKey: '', apiEndpoint: '' }) }}>
                       {t('common.edit')}
                     </SecondaryButton>
@@ -1204,6 +1235,25 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
     return `https://www.gravatar.com/avatar/${hash}?${avatarParams}`
   }
 
+  const { data: siteProviders } = useQuery({
+    queryKey: ['site-providers', siteId],
+    queryFn: () => api<any[]>(`/api/admin/sites/${siteId}/providers`),
+    enabled: siteId.length > 0,
+  })
+
+  const [confirmDeleteAllByProvider, setConfirmDeleteAllByProvider] = useState(false)
+  const [deleteAllCommentsResult, setDeleteAllCommentsResult] = useState<number | null>(null)
+
+  const deleteAllCommentsMutation = useMutation({
+    mutationFn: (pid: string) =>
+      api(`/api/admin/sites/${siteId}/providers/${pid}/delete-comments`, { method: 'POST' }),
+    onSuccess: (res: any) => {
+      setDeleteAllCommentsResult(res.data?.deletedCount ?? 0)
+      queryClient.invalidateQueries({ queryKey: ['comments-search', siteId] })
+      setTimeout(() => setDeleteAllCommentsResult(null), 4000)
+    },
+  })
+
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQ(searchQ), 300)
     return () => clearTimeout(timer)
@@ -1244,6 +1294,8 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['comments-search', siteId] }) },
   })
 
+  const isSpecificAiProvider = type !== 'all' && type !== 'visitor' && type !== 'fedi' && type !== 'ai'
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -1258,9 +1310,11 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
         </div>
         <select className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300" value={type} onChange={e => { setType(e.target.value); setPage(1) }}>
           <option value="all">{t('sites.commentTypeAll')}</option>
-          <option value="ai">{t('sites.commentTypeAi')}</option>
-          <option value="visitor">{t('sites.commentTypeVisitor')}</option>
-          {mastodonEnabled && <option value="fedi">{t('fedi.badge')}</option>}
+          <option value="visitor">{t('sites.commentPluginNative')}</option>
+          {mastodonEnabled && <option value="fedi">{t('sites.commentPluginFedi')}</option>}
+          {(siteProviders || []).map((p: any) => (
+            <option key={p.id} value={p.displayName}>{p.displayName}</option>
+          ))}
         </select>
         <select className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300" value={sort} onChange={e => { setSort(e.target.value); setPage(1) }}>
           <option value="time">{t('sites.sortByTime')}</option>
@@ -1270,6 +1324,37 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
           <input type="checkbox" checked={showHidden} onChange={() => { setShowHidden(!showHidden); setPage(1) }} />
           {t('sites.showHidden')}
         </label>
+
+        {isSpecificAiProvider && (
+          <div className="flex items-center gap-2 ml-auto">
+            {deleteAllCommentsResult !== null && (
+              <span className="text-green-600 text-sm">
+                {t('sites.deleteCommentsSuccess', { count: deleteAllCommentsResult })}
+              </span>
+            )}
+            {confirmDeleteAllByProvider ? (
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-red-500 mr-1">{t('sites.deleteCommentsConfirm')}</span>
+                <DangerButton onClick={() => {
+                  const selectedProvider = (siteProviders || []).find((p: any) => p.displayName === type)
+                  if (selectedProvider) {
+                    deleteAllCommentsMutation.mutate(selectedProvider.id)
+                  }
+                  setConfirmDeleteAllByProvider(false)
+                }} disabled={deleteAllCommentsMutation.isPending}>
+                  {t('common.confirm')}
+                </DangerButton>
+                <SecondaryButton onClick={() => setConfirmDeleteAllByProvider(false)}>
+                  {t('common.cancel')}
+                </SecondaryButton>
+              </div>
+            ) : (
+              <DangerButton onClick={() => setConfirmDeleteAllByProvider(true)}>
+                删除全部评论
+              </DangerButton>
+            )}
+          </div>
+        )}
       </div>
 
       {isLoading ? (

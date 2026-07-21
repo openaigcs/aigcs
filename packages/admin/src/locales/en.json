@@ -395,7 +395,7 @@
     "avatarRemove": "Remove",
     "avatarHint": "Max 512×512px. PNG, JPG, GIF, WebP.",
     "avatarTooLarge": "File too large (max 2MB)",
-    "passkeys": "Passkeys",
+    "passkeys": "Passkey",
     "passkeysDescription": "Unlock secure, passwordless login using fingerprints, face scans, or device PINs.",
     "addPasskey": "Add Passkey",
     "passkeyNoKeys": "You haven't registered any Passkeys yet.",

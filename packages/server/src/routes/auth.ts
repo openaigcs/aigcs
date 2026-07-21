@@ -324,7 +324,7 @@ router.post('/totp/verify', zValidator('json', totpVerifySchema), async (c) => {
     throw new HTTPException(400, { message: 'TOTP not configured. Please set up TOTP first.' })
   }
   let codeValid = false
-  codeValid = verifySync({ token: code, secret: decrypt(user.totpSecret) }).valid
+  codeValid = verifySync({ token: code, secret: decrypt(user.totpSecret), epochTolerance: 30 }).valid
   if (!codeValid && user.totpBackupCodes) {
     const backups: string[] = JSON.parse(user.totpBackupCodes)
     const codeHash = createHash('sha256').update(code).digest('hex')
@@ -545,7 +545,7 @@ router.post('/totp/enable', authGuard, zValidator('json', totpEnableSchema), asy
   const db = getDb()
   const { secret, code } = c.req.valid('json')
 
-  const isValid = verifySync({ token: code, secret }).valid
+  const isValid = verifySync({ token: code, secret, epochTolerance: 30 }).valid
   if (!isValid) throw new HTTPException(400, { message: 'Invalid verification code' })
 
   const backupCodes = Array.from({ length: 8 }, () => {
@@ -586,7 +586,7 @@ router.post('/totp/disable', authGuard, zValidator('json', totpDisableSchema), a
 
   let codeValid = false
   if (stored.totpSecret) {
-    codeValid = verifySync({ token: code, secret: decrypt(stored.totpSecret) }).valid
+    codeValid = verifySync({ token: code, secret: decrypt(stored.totpSecret), epochTolerance: 30 }).valid
   }
   if (!codeValid && stored.totpBackupCodes) {
     const backups: string[] = JSON.parse(stored.totpBackupCodes)
@@ -838,7 +838,7 @@ router.post('/passkey/register-verify', authGuard, async (c) => {
   const counter = registrationInfo.credential.counter
   const credentialDeviceType = registrationInfo.credentialDeviceType
 
-  const credIdBase64 = Buffer.from(credentialID).toString('base64url')
+  const credIdBase64 = credentialID
   const pubKeyBase64 = Buffer.from(credentialPublicKey).toString('base64url')
 
   db.insert(userPasskeys).values({

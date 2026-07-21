@@ -398,7 +398,7 @@
     "avatarRemove": "移除",
     "avatarHint": "最大 512×512px，支持 PNG、JPG、GIF、WebP",
     "avatarTooLarge": "文件过大（最大 2MB）",
-    "passkeys": "密钥 (Passkeys)",
+    "passkeys": "密钥 (Passkey)",
     "passkeysDescription": "通过指纹、面容或设备 PIN 码实现更安全的免密登录。",
     "addPasskey": "添加 Passkey",
     "passkeyNoKeys": "您还没有添加任何 Passkey。",

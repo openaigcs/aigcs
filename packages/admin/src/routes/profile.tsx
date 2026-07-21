@@ -396,7 +396,7 @@ export const Route = createRoute({
           </Card>
 
           {/* TOTP */}
-          <Card title={t('profile.twoFactor')}>
+          <Card className="mb-8" title={t('profile.twoFactor')}>
             {userInfo?.totpEnabled ? (
               <div>
                 <p className="text-green-600 dark:text-green-400 mb-3">✅ {t('profile.enabled')}</p>
@@ -485,7 +485,7 @@ export const Route = createRoute({
           </Card>
 
           {/* OAuth */}
-          <Card title={t('profile.oauth')}>
+          <Card className="mb-8" title={t('profile.oauth')}>
             <p className="text-gray-500 dark:text-gray-400 mb-4">{t('profile.oauthDescription')}</p>
             {oauthSuccess && <p className="text-green-600 text-sm mb-2">{oauthSuccess}</p>}
             {oauthError && <p className="text-red-500 text-sm mb-2">{oauthError}</p>}

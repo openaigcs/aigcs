@@ -11,6 +11,7 @@ import MinimaxAvatar from '@lobehub/icons/es/Minimax/components/Avatar'
 import MoonshotAvatar from '@lobehub/icons/es/Moonshot/components/Avatar'
 import OllamaAvatar from '@lobehub/icons/es/Ollama/components/Avatar'
 import GrokAvatar from '@lobehub/icons/es/Grok/components/Avatar'
+import XiaomiMiMoAvatar from '@lobehub/icons/es/XiaomiMiMo/components/Avatar'
 
 function QuarkIcon({ size = 20 }: { size?: number }) {
   return (
@@ -33,6 +34,7 @@ const AVATAR_MAP: Record<string, any> = {
   minimax: MinimaxAvatar,
   kimi: MoonshotAvatar,
   ollama: OllamaAvatar,
+  xiaomi: XiaomiMiMoAvatar,
   grok: GrokAvatar,
   qrok: GrokAvatar,
   quark: QuarkIcon,

@@ -1799,9 +1799,13 @@ router.get('/sites/:siteId/comments/search', async (c) => {
 
   // Count total for pagination
   let total = 0
-  if (type === 'all' || type === 'ai') {
+  if (type === 'all' || type === 'ai' || isSpecificAiProvider) {
     let sql = "SELECT COUNT(*) as cnt FROM comments WHERE site_id = ?"
     const params: any[] = [siteId]
+    if (isSpecificAiProvider) {
+      sql += ' AND provider_name = ?'
+      params.push(type)
+    }
     if (q) { const lc = likeClause(['content', 'author_name', 'path'], q); if (lc.sql) { sql += ' AND ' + lc.sql; params.push(...lc.params) } }
     const row = raw.prepare(sql).get(...params) as { cnt: number }
     total += row.cnt

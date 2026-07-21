@@ -973,11 +973,18 @@ async function generateComments(siteId: string, path: string, siteDomain?: strin
         extraParams: (provider as any).extraParams as Record<string, unknown>,
       })
 
-      const commentId = randomUUID()
-      const cleanContent = purify.sanitize(result.content, {
+      // Strip think tags and their contents (e.g. from DeepSeek R1 reasoning models)
+      const contentWithoutThink = result.content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+      const cleanContent = purify.sanitize(contentWithoutThink, {
         ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'a', 'ul', 'ol', 'li', 'blockquote', 'pre', 'code', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
         ALLOWED_ATTR: ['href', 'target', 'rel'],
-      })
+      }).trim()
+
+      if (!cleanContent) {
+        throw new Error('Generated comment content is empty')
+      }
+
+      const commentId = randomUUID()
       const contentMd5 = md5(cleanContent)
       const writeTx = raw.transaction(() => {
         raw.prepare('DELETE FROM comments WHERE site_id = ? AND path = ? AND provider_name = ?').run(siteId, path, (provider as any).displayName)

@@ -4,6 +4,9 @@ import { useState, useRef, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { PrimaryButton, DangerButton, Input, Card } from '../components/ui'
+import { startRegistration } from '@simplewebauthn/browser'
+import GithubIcon from '@lobehub/icons/es/Github'
+import GoogleIcon from '@lobehub/icons/es/Google'
 import { md5 } from '../md5.js'
 
 export const Route = createRoute({
@@ -12,6 +15,127 @@ export const Route = createRoute({
   component: () => {
     const { t } = useTranslation()
     const queryClient = useQueryClient()
+    const [passkeyError, setPasskeyError] = useState<string | null>(null)
+    const [passkeySuccess, setPasskeySuccess] = useState<string | null>(null)
+    const [oauthError, setOauthError] = useState<string | null>(null)
+    const [oauthSuccess, setOauthSuccess] = useState<string | null>(null)
+
+    const { data: passkeys, refetch: refetchPasskeys } = useQuery({
+      queryKey: ['passkey-list'],
+      queryFn: async () => {
+        const res = await fetch('/api/auth/passkey/list', {
+          headers: { Authorization: `Bearer ${token()}` },
+        })
+        const json = await res.json()
+        if (!res.ok || json.code !== 0) throw new Error(json.message)
+        return json.data as Array<{ id: string; deviceType: string; createdAt: string }>
+      }
+    })
+
+    const { data: oauthStatus, refetch: refetchOauth } = useQuery({
+      queryKey: ['oauth-status'],
+      queryFn: async () => {
+        const res = await fetch('/api/auth/oauth/status', {
+          headers: { Authorization: `Bearer ${token()}` },
+        })
+        const json = await res.json()
+        if (!res.ok || json.code !== 0) throw new Error(json.message)
+        return json.data as { github: boolean; google: boolean }
+      }
+    })
+
+    useEffect(() => {
+      const handleMessage = (e: MessageEvent) => {
+        if (e.data?.type === 'oauth-bind-success') {
+          refetchOauth()
+          setOauthSuccess(t('profile.oauthBindSuccess'))
+        }
+      }
+      window.addEventListener('message', handleMessage)
+      return () => window.removeEventListener('message', handleMessage)
+    }, [refetchOauth, t])
+
+    const handleOauthBind = (provider: 'github' | 'google') => {
+      setOauthError(null)
+      setOauthSuccess(null)
+      const width = 600
+      const height = 680
+      const left = window.screen.width / 2 - width / 2
+      const top = window.screen.height / 2 - height / 2
+      window.open(
+        `/api/auth/oauth/${provider}?bind=true`,
+        'OAuthBind',
+        `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`
+      )
+    }
+
+    const registerPasskeyMutation = useMutation({
+      mutationFn: async () => {
+        const optionsRes = await fetch('/api/auth/passkey/register-options', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token()}` },
+        })
+        const optionsJson = await optionsRes.json()
+        if (optionsJson.code !== 0) throw new Error(optionsJson.message)
+
+        const attestation = await startRegistration({ optionsJSON: optionsJson.data })
+
+        const verifyRes = await fetch('/api/auth/passkey/register-verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+          body: JSON.stringify(attestation),
+        })
+        const verifyJson = await verifyRes.json()
+        if (verifyJson.code !== 0) throw new Error(verifyJson.message)
+        return verifyJson
+      },
+      onSuccess: () => {
+        refetchPasskeys()
+        setPasskeySuccess(t('profile.passkeyAdded'))
+      },
+      onError: (err: any) => {
+        setPasskeyError(err.message || 'Failed to register passkey')
+      }
+    })
+
+    const deletePasskeyMutation = useMutation({
+      mutationFn: async (id: string) => {
+        const res = await fetch(`/api/auth/passkey/delete/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token()}` },
+        })
+        const json = await res.json()
+        if (!res.ok || json.code !== 0) throw new Error(json.message)
+        return json
+      },
+      onSuccess: () => {
+        refetchPasskeys()
+        setPasskeySuccess(t('profile.passkeyDeleted'))
+      },
+      onError: (err: any) => {
+        setPasskeyError(err.message)
+      }
+    })
+
+    const unbindOauthMutation = useMutation({
+      mutationFn: async (provider: string) => {
+        const res = await fetch('/api/auth/oauth/unbind', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+          body: JSON.stringify({ provider })
+        })
+        const json = await res.json()
+        if (!res.ok || json.code !== 0) throw new Error(json.message)
+        return json
+      },
+      onSuccess: () => {
+        refetchOauth()
+      },
+      onError: (err: any) => {
+        setOauthError(err.message)
+      }
+    })
+
     const [editUsername, setEditUsername] = useState('')
     const [editEmail, setEditEmail] = useState('')
     const [editDisplayName, setEditDisplayName] = useState('')
@@ -327,6 +451,78 @@ export const Route = createRoute({
                 </div>
               </div>
             )}
+          </Card>
+
+          {/* Passkey */}
+          <Card className="mb-8" title={t('profile.passkeys')}>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">{t('profile.passkeysDescription')}</p>
+            {passkeySuccess && <p className="text-green-600 text-sm mb-2">{passkeySuccess}</p>}
+            {passkeyError && <p className="text-red-500 text-sm mb-2">{passkeyError}</p>}
+
+            {passkeys && passkeys.length > 0 ? (
+              <div className="border border-gray-200 dark:border-gray-700 rounded overflow-hidden divide-y divide-gray-200 dark:divide-gray-700 mb-4">
+                {passkeys.map((k: any) => (
+                  <div key={k.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800">
+                    <div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                        Device: {k.deviceType === 'multiDevice' ? 'Synced (Passkey)' : 'Hardware Key'}
+                      </span>
+                      <span className="block text-xs text-gray-400">Created: {new Date(k.createdAt).toLocaleString()}</span>
+                    </div>
+                    <DangerButton onClick={() => { if (window.confirm(t('common.delete') + '?')) { setPasskeyError(null); setPasskeySuccess(null); deletePasskeyMutation.mutate(k.id) } }}>
+                      {t('common.delete')}
+                    </DangerButton>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400 italic mb-4">{t('profile.passkeyNoKeys')}</p>
+            )}
+            
+            <PrimaryButton onClick={() => { setPasskeyError(null); setPasskeySuccess(null); registerPasskeyMutation.mutate() }} disabled={registerPasskeyMutation.isPending}>
+              {registerPasskeyMutation.isPending ? t('common.loading') : t('profile.addPasskey')}
+            </PrimaryButton>
+          </Card>
+
+          {/* OAuth */}
+          <Card title={t('profile.oauth')}>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">{t('profile.oauthDescription')}</p>
+            {oauthSuccess && <p className="text-green-600 text-sm mb-2">{oauthSuccess}</p>}
+            {oauthError && <p className="text-red-500 text-sm mb-2">{oauthError}</p>}
+
+            <div className="space-y-4">
+              {/* GitHub */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded">
+                <div className="flex items-center gap-3">
+                  <GithubIcon size={24} />
+                  <div>
+                    <span className="text-sm font-medium block">{t('profile.github')}</span>
+                    <span className="text-xs text-gray-400">{oauthStatus?.github ? t('profile.bound') : t('profile.unbound')}</span>
+                  </div>
+                </div>
+                {oauthStatus?.github ? (
+                  <DangerButton onClick={() => { setOauthError(null); setOauthSuccess(null); unbindOauthMutation.mutate('github') }}>{t('profile.unbind')}</DangerButton>
+                ) : (
+                  <PrimaryButton onClick={() => handleOauthBind('github')}>{t('profile.bind')}</PrimaryButton>
+                )}
+              </div>
+
+              {/* Google */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded">
+                <div className="flex items-center gap-3">
+                  <GoogleIcon size={24} />
+                  <div>
+                    <span className="text-sm font-medium block">{t('profile.google')}</span>
+                    <span className="text-xs text-gray-400">{oauthStatus?.google ? t('profile.bound') : t('profile.unbound')}</span>
+                  </div>
+                </div>
+                {oauthStatus?.google ? (
+                  <DangerButton onClick={() => { setOauthError(null); setOauthSuccess(null); unbindOauthMutation.mutate('google') }}>{t('profile.unbind')}</DangerButton>
+                ) : (
+                  <PrimaryButton onClick={() => handleOauthBind('google')}>{t('profile.bind')}</PrimaryButton>
+                )}
+              </div>
+            </div>
           </Card>
         </div>
       </div>

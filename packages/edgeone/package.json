@@ -9,13 +9,13 @@
   },
   "dependencies": {
     "@aigcs/server": "workspace:*",
-    "mysql2": "^3.22.5",
-    "pg": "^8.21.0"
+    "mysql2": "^3.23.1",
+    "pg": "^8.22.0"
   },
   "devDependencies": {
-    "@types/node": "^22.16.0",
+    "@types/node": "^22.20.1",
     "@types/pg": "^8.20.0",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.1",
     "typescript": "^6.0.3"
   }
 }

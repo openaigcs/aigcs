@@ -2,8 +2,14 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { getDb, getRawDb } from '../db/index.js'
-import { users, auditLog } from '@aigcs/core'
-import { eq, sql } from 'drizzle-orm'
+import { users, auditLog, userPasskeys, userOauthAccounts } from '@aigcs/core'
+import { eq, and, sql } from 'drizzle-orm'
+import {
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+  generateAuthenticationOptions,
+  verifyAuthenticationResponse,
+} from '@simplewebauthn/server'
 import { HTTPException } from 'hono/http-exception'
 import jwt from 'jsonwebtoken'
 import { authGuard } from '../middleware/auth.js'
@@ -721,4 +727,599 @@ router.get('/avatar/:userId', async (c) => {
   }
 })
 
+// ── Passkey / WebAuthn Options Store ──
+const passkeyRegistrationStore = new Map<string, { userId: string; challenge: string; expiresAt: number }>()
+const passkeyAuthenticationStore = new Map<string, { userId?: string; challenge: string; expiresAt: number }>()
+
+// Clean up expired challenges
+setInterval(() => {
+  const now = Date.now()
+  for (const [k, v] of passkeyRegistrationStore.entries()) {
+    if (v.expiresAt < now) passkeyRegistrationStore.delete(k)
+  }
+  for (const [k, v] of passkeyAuthenticationStore.entries()) {
+    if (v.expiresAt < now) passkeyAuthenticationStore.delete(k)
+  }
+}, 300000)
+
+// GET /api/auth/passkey/list
+router.get('/passkey/list', authGuard, async (c) => {
+  const user = c.get('user')!
+  const db = getDb()
+  const list = db.select({
+    id: userPasskeys.id,
+    deviceType: userPasskeys.deviceType,
+    createdAt: userPasskeys.createdAt,
+  }).from(userPasskeys).where(eq(userPasskeys.userId, user.id)).all()
+  return c.json({ code: 0, data: list })
+})
+
+// DELETE /api/auth/passkey/delete/:id
+router.delete('/passkey/delete/:id', authGuard, async (c) => {
+  const user = c.get('user')!
+  const id = c.req.param('id')
+  const db = getDb()
+  db.delete(userPasskeys).where(and(eq(userPasskeys.id, id), eq(userPasskeys.userId, user.id))).run()
+  db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.passkey.delete', details: JSON.stringify({ id }) }).run()
+  return c.json({ code: 0, message: 'Passkey deleted' })
+})
+
+// POST /api/auth/passkey/register-options
+router.post('/passkey/register-options', authGuard, async (c) => {
+  const user = c.get('user')!
+  const db = getDb()
+  const rpName = 'AIGCS'
+  const rpID = process.env.RP_ID || c.req.header('host')?.split(':')[0] || 'localhost'
+
+  const userKeys = db.select().from(userPasskeys).where(eq(userPasskeys.userId, user.id)).all()
+  const dbUser = db.select().from(users).where(eq(users.id, user.id)).get() as any
+
+  const options = await generateRegistrationOptions({
+    rpName,
+    rpID,
+    userID: Uint8Array.from(Buffer.from(user.id)),
+    userName: user.email,
+    userDisplayName: dbUser?.displayName || user.email,
+    attestationType: 'none',
+    excludeCredentials: userKeys.map((k: any) => ({
+      id: Buffer.from(k.credentialId, 'base64url'),
+      type: 'public-key',
+    })),
+    authenticatorSelection: {
+      residentKey: 'required',
+      userVerification: 'preferred',
+    },
+  })
+
+  passkeyRegistrationStore.set(user.id, {
+    userId: user.id,
+    challenge: options.challenge,
+    expiresAt: Date.now() + 300000,
+  })
+
+  return c.json({ code: 0, data: options })
+})
+
+// POST /api/auth/passkey/register-verify
+router.post('/passkey/register-verify', authGuard, async (c) => {
+  const user = c.get('user')!
+  const body = await c.req.json()
+  const db = getDb()
+
+  const store = passkeyRegistrationStore.get(user.id)
+  if (!store || store.expiresAt < Date.now()) {
+    throw new HTTPException(400, { message: 'Challenge expired or invalid' })
+  }
+  passkeyRegistrationStore.delete(user.id)
+
+  const rpID = process.env.RP_ID || c.req.header('host')?.split(':')[0] || 'localhost'
+  const origin = process.env.RP_ORIGIN || `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host')}`
+
+  let verification
+  try {
+    verification = await verifyRegistrationResponse({
+      response: body,
+      expectedChallenge: store.challenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      requireUserVerification: false,
+    })
+  } catch (err: any) {
+    throw new HTTPException(400, { message: `Verification failed: ${err.message}` })
+  }
+
+  const { verified, registrationInfo } = verification
+  if (!verified || !registrationInfo) {
+    throw new HTTPException(400, { message: 'Verification failed' })
+  }
+
+  const credentialID = registrationInfo.credential.id
+  const credentialPublicKey = registrationInfo.credential.publicKey
+  const counter = registrationInfo.credential.counter
+  const credentialDeviceType = registrationInfo.credentialDeviceType
+
+  const credIdBase64 = Buffer.from(credentialID).toString('base64url')
+  const pubKeyBase64 = Buffer.from(credentialPublicKey).toString('base64url')
+
+  db.insert(userPasskeys).values({
+    id: nanoid(),
+    userId: user.id,
+    credentialId: credIdBase64,
+    publicKey: pubKeyBase64,
+    counter: counter,
+    deviceType: credentialDeviceType,
+    backedUp: registrationInfo.credentialBackedUp ? 1 : 0,
+  } as any).run()
+
+  db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.passkey.register' }).run()
+
+  return c.json({ code: 0, message: 'Passkey registered successfully' })
+})
+
+// POST /api/auth/passkey/login-options
+router.post('/passkey/login-options', async (c) => {
+  const rpID = process.env.RP_ID || c.req.header('host')?.split(':')[0] || 'localhost'
+
+  const options = await generateAuthenticationOptions({
+    rpID,
+    userVerification: 'preferred',
+  })
+
+  const optionId = nanoid()
+  passkeyAuthenticationStore.set(optionId, {
+    challenge: options.challenge,
+    expiresAt: Date.now() + 300000,
+  })
+
+  return c.json({ code: 0, data: { options, optionId } })
+})
+
+// POST /api/auth/passkey/login-verify
+router.post('/passkey/login-verify', async (c) => {
+  const { optionId, assertion } = await c.req.json() as { optionId: string; assertion: any }
+  const db = getDb()
+
+  const store = passkeyAuthenticationStore.get(optionId)
+  if (!store || store.expiresAt < Date.now()) {
+    throw new HTTPException(400, { message: 'Challenge expired or invalid' })
+  }
+  passkeyAuthenticationStore.delete(optionId)
+
+  const credIdBase64 = assertion.id
+  const passkey = db.select().from(userPasskeys).where(eq(userPasskeys.credentialId, credIdBase64)).get()
+  if (!passkey) {
+    throw new HTTPException(400, { message: 'Passkey credential not registered' })
+  }
+
+  const user = db.select().from(users).where(eq(users.id, passkey.userId)).get()
+  if (!user) {
+    throw new HTTPException(404, { message: 'User not found' })
+  }
+
+  const rpID = process.env.RP_ID || c.req.header('host')?.split(':')[0] || 'localhost'
+  const origin = process.env.RP_ORIGIN || `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host')}`
+
+  let verification
+  try {
+    verification = await verifyAuthenticationResponse({
+      response: assertion,
+      expectedChallenge: store.challenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      credential: {
+        id: passkey.credentialId,
+        publicKey: Buffer.from(passkey.publicKey, 'base64url'),
+        counter: passkey.counter,
+      },
+      requireUserVerification: false,
+    })
+  } catch (err: any) {
+    throw new HTTPException(400, { message: `Authentication failed: ${err.message}` })
+  }
+
+  const { verified, authenticationInfo } = verification
+  if (!verified) {
+    throw new HTTPException(400, { message: 'Authentication verification failed' })
+  }
+
+  db.update(userPasskeys).set({ counter: authenticationInfo.newCounter }).where(eq(userPasskeys.id, passkey.id)).run()
+
+  const accessToken = jwt.sign({ sub: user.id, email: user.email, role: user.role }, jwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRES })
+  const refreshToken = jwt.sign({ sub: user.id, type: 'refresh' }, jwtSecret(), { expiresIn: REFRESH_TOKEN_EXPIRES })
+
+  db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.passkey.login' }).run()
+
+  return c.json({
+    code: 0,
+    data: {
+      accessToken,
+      refreshToken,
+      token: accessToken,
+      expiresIn: 900,
+      user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role },
+    },
+  })
+})
+
+// GET /api/auth/oauth/github
+router.get('/oauth/github', async (c) => {
+  const isBind = c.req.query('bind') === 'true'
+  const clientId = process.env.GITHUB_CLIENT_ID
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET
+  if (!clientId || !clientSecret) {
+    throw new HTTPException(500, { message: 'GitHub OAuth is not configured' })
+  }
+
+  const origin = process.env.RP_ORIGIN || `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host')}`
+  const redirectUri = `${origin}/api/auth/oauth/github/callback`
+  const state = nanoid()
+
+  c.header('Set-Cookie', `oauth_state=${state}; Path=/; HttpOnly; Max-Age=300; SameSite=Lax`, { append: true })
+  if (isBind) {
+    const authHeader = c.req.header('Authorization')
+    let userId = ''
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const payload = jwt.verify(authHeader.substring(7), jwtSecret()) as any
+        userId = payload.sub
+      } catch {}
+    }
+    if (userId) {
+      const signedUserId = jwt.sign({ sub: userId }, jwtSecret(), { expiresIn: '5m' })
+      c.header('Set-Cookie', `oauth_bind_user=${signedUserId}; Path=/; HttpOnly; Max-Age=300; SameSite=Lax`, { append: true })
+    }
+  } else {
+    c.header('Set-Cookie', 'oauth_bind_user=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax', { append: true })
+  }
+
+  const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=user:email`
+  return c.redirect(url)
+})
+
+// GET /api/auth/oauth/github/callback
+router.get('/oauth/github/callback', async (c) => {
+  const code = c.req.query('code') || ''
+  const state = c.req.query('state') || ''
+  
+  const cookies = c.req.header('Cookie') || ''
+  const cookieMap = Object.fromEntries(cookies.split(';').map(v => v.trim().split('=')))
+  const expectedState = cookieMap['oauth_state']
+  const bindUserToken = cookieMap['oauth_bind_user']
+
+  if (!expectedState || state !== expectedState) {
+    return c.html('<h1>Authentication failed: CSRF state invalid.</h1>')
+  }
+
+  const clientId = process.env.GITHUB_CLIENT_ID
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET
+  const origin = process.env.RP_ORIGIN || `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host')}`
+  const redirectUri = `${origin}/api/auth/oauth/github/callback`
+
+  const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri, state }),
+  })
+  const tokenData = await tokenRes.json() as { access_token?: string }
+  const accessToken = tokenData.access_token
+  if (!accessToken) {
+    return c.html('<h1>Failed to retrieve GitHub access token.</h1>')
+  }
+
+  const userRes = await fetch('https://api.github.com/user', {
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'User-Agent': 'AIGCS-OAuth-App' },
+  })
+  const userData = await userRes.json() as { id: number; login: string; email?: string }
+  const providerUserId = String(userData.id)
+  
+  let email = userData.email || ''
+  if (!email) {
+    try {
+      const emailRes = await fetch('https://api.github.com/user/emails', {
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'User-Agent': 'AIGCS-OAuth-App' },
+      })
+      const emails = await emailRes.json() as Array<{ email: string; primary: boolean; verified: boolean }>
+      const primaryEmail = emails.find(e => e.primary) || emails[0]
+      email = primaryEmail?.email || ''
+    } catch {}
+  }
+
+  if (!email) {
+    return c.html('<h1>Failed to retrieve primary email from GitHub.</h1>')
+  }
+
+  const db = getDb()
+  const raw = getRawDb()
+
+  if (bindUserToken) {
+    try {
+      const payload = jwt.verify(bindUserToken, jwtSecret()) as any
+      const loggedInUserId = payload.sub
+
+      const existingBind = db.select().from(userOauthAccounts).where(and(
+        eq(userOauthAccounts.providerId, 'github'),
+        eq(userOauthAccounts.providerUserId, providerUserId)
+      )).get()
+      if (existingBind) {
+        if (existingBind.userId === loggedInUserId) {
+          return c.html(`<script>window.opener.postMessage({ type: 'oauth-bind-success' }, '*'); window.close();</script>`)
+        }
+        return c.html('<h1>This GitHub account is already bound to another profile.</h1>')
+      }
+
+      db.insert(userOauthAccounts).values({
+        id: nanoid(),
+        userId: loggedInUserId,
+        providerId: 'github',
+        providerUserId,
+      }).run()
+
+      db.insert(auditLog).values({ id: nanoid(), userId: loggedInUserId, action: 'auth.oauth.bind', details: JSON.stringify({ provider: 'github' }) }).run()
+      return c.html(`<script>window.opener.postMessage({ type: 'oauth-bind-success' }, '*'); window.close();</script>`)
+    } catch {
+      return c.html('<h1>Session expired during binding. Please try again.</h1>')
+    }
+  }
+
+  let oauthBind = db.select().from(userOauthAccounts).where(and(
+    eq(userOauthAccounts.providerId, 'github'),
+    eq(userOauthAccounts.providerUserId, providerUserId)
+  )).get()
+
+  let user = oauthBind ? db.select().from(users).where(eq(users.id, oauthBind.userId)).get() : null
+
+  if (!user) {
+    const localUser = db.select().from(users).where(eq(users.email, email)).get()
+    if (localUser) {
+      db.insert(userOauthAccounts).values({
+        id: nanoid(),
+        userId: localUser.id,
+        providerId: 'github',
+        providerUserId,
+      }).run()
+      user = localUser
+    }
+  }
+
+  if (!user) {
+    const regConfig = raw.prepare?.("SELECT registration_open FROM system_config WHERE id = 'global'").get() as { registration_open: number } | undefined
+    const isRegistrationOpen = regConfig?.registration_open === 1
+
+    if (!isRegistrationOpen) {
+      return c.redirect(`${origin}/login?error=registration_closed`)
+    }
+
+    const id = nanoid()
+    const role = 'user'
+    db.insert(users).values({
+      id,
+      email,
+      username: userData.login,
+      passwordHash: await hashPassword(randomBytes(16).toString('hex')),
+      displayName: userData.login,
+      role,
+    }).run()
+
+    db.insert(userOauthAccounts).values({
+      id: nanoid(),
+      userId: id,
+      providerId: 'github',
+      providerUserId,
+    }).run()
+
+    user = db.select().from(users).where(eq(users.id, id)).get()!
+  }
+
+  const payloadJwt = { sub: user.id, email: user.email, role: user.role }
+  const loginAccessToken = jwt.sign(payloadJwt, jwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRES })
+  const loginRefreshToken = jwt.sign({ sub: user.id, type: 'refresh' }, jwtSecret(), { expiresIn: REFRESH_TOKEN_EXPIRES })
+
+  db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.oauth.login', details: JSON.stringify({ provider: 'github' }) }).run()
+
+  const dataString = JSON.stringify({
+    accessToken: loginAccessToken,
+    refreshToken: loginRefreshToken,
+    token: loginAccessToken,
+    expiresIn: 900,
+    user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role }
+  })
+
+  return c.html(`<script>window.opener.postMessage({ type: 'oauth-login-success', data: ${dataString} }, '*'); window.close();</script>`)
+})
+
+// GET /api/auth/oauth/google
+router.get('/oauth/google', async (c) => {
+  const isBind = c.req.query('bind') === 'true'
+  const clientId = process.env.GOOGLE_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+  if (!clientId || !clientSecret) {
+    throw new HTTPException(500, { message: 'Google OAuth is not configured' })
+  }
+
+  const origin = process.env.RP_ORIGIN || `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host')}`
+  const redirectUri = `${origin}/api/auth/oauth/google/callback`
+  const state = nanoid()
+
+  c.header('Set-Cookie', `oauth_state=${state}; Path=/; HttpOnly; Max-Age=300; SameSite=Lax`, { append: true })
+  if (isBind) {
+    const authHeader = c.req.header('Authorization')
+    let userId = ''
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const payload = jwt.verify(authHeader.substring(7), jwtSecret()) as any
+        userId = payload.sub
+      } catch {}
+    }
+    if (userId) {
+      const signedUserId = jwt.sign({ sub: userId }, jwtSecret(), { expiresIn: '5m' })
+      c.header('Set-Cookie', `oauth_bind_user=${signedUserId}; Path=/; HttpOnly; Max-Age=300; SameSite=Lax`, { append: true })
+    }
+  } else {
+    c.header('Set-Cookie', 'oauth_bind_user=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax', { append: true })
+  }
+
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&response_type=code&scope=${encodeURIComponent('openid email profile')}`
+  return c.redirect(url)
+})
+
+// GET /api/auth/oauth/google/callback
+router.get('/oauth/google/callback', async (c) => {
+  const code = c.req.query('code') || ''
+  const state = c.req.query('state') || ''
+  
+  const cookies = c.req.header('Cookie') || ''
+  const cookieMap = Object.fromEntries(cookies.split(';').map(v => v.trim().split('=')))
+  const expectedState = cookieMap['oauth_state']
+  const bindUserToken = cookieMap['oauth_bind_user']
+
+  if (!expectedState || state !== expectedState) {
+    return c.html('<h1>Authentication failed: CSRF state invalid.</h1>')
+  }
+
+  const clientId = process.env.GOOGLE_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+  const origin = process.env.RP_ORIGIN || `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host')}`
+  const redirectUri = `${origin}/api/auth/oauth/google/callback`
+
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri, grant_type: 'authorization_code' }),
+  })
+  const tokenData = await tokenRes.json() as { access_token?: string }
+  const accessToken = tokenData.access_token
+  if (!accessToken) {
+    return c.html('<h1>Failed to retrieve Google access token.</h1>')
+  }
+
+  const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  })
+  const userData = await userRes.json() as { id: string; email: string; name?: string }
+  const providerUserId = userData.id
+  const email = userData.email
+
+  if (!email) {
+    return c.html('<h1>Failed to retrieve email from Google.</h1>')
+  }
+
+  const db = getDb()
+  const raw = getRawDb()
+
+  if (bindUserToken) {
+    try {
+      const payload = jwt.verify(bindUserToken, jwtSecret()) as any
+      const loggedInUserId = payload.sub
+
+      const existingBind = db.select().from(userOauthAccounts).where(and(
+        eq(userOauthAccounts.providerId, 'google'),
+        eq(userOauthAccounts.providerUserId, providerUserId)
+      )).get()
+      if (existingBind) {
+        if (existingBind.userId === loggedInUserId) {
+          return c.html(`<script>window.opener.postMessage({ type: 'oauth-bind-success' }, '*'); window.close();</script>`)
+        }
+        return c.html('<h1>This Google account is already bound to another profile.</h1>')
+      }
+
+      db.insert(userOauthAccounts).values({
+        id: nanoid(),
+        userId: loggedInUserId,
+        providerId: 'google',
+        providerUserId,
+      }).run()
+
+      db.insert(auditLog).values({ id: nanoid(), userId: loggedInUserId, action: 'auth.oauth.bind', details: JSON.stringify({ provider: 'google' }) }).run()
+      return c.html(`<script>window.opener.postMessage({ type: 'oauth-bind-success' }, '*'); window.close();</script>`)
+    } catch {
+      return c.html('<h1>Session expired during binding. Please try again.</h1>')
+    }
+  }
+
+  let oauthBind = db.select().from(userOauthAccounts).where(and(
+    eq(userOauthAccounts.providerId, 'google'),
+    eq(userOauthAccounts.providerUserId, providerUserId)
+  )).get()
+
+  let user = oauthBind ? db.select().from(users).where(eq(users.id, oauthBind.userId)).get() : null
+
+  if (!user) {
+    const localUser = db.select().from(users).where(eq(users.email, email)).get()
+    if (localUser) {
+      db.insert(userOauthAccounts).values({
+        id: nanoid(),
+        userId: localUser.id,
+        providerId: 'google',
+        providerUserId,
+      }).run()
+      user = localUser
+    }
+  }
+
+  if (!user) {
+    const regConfig = raw.prepare?.("SELECT registration_open FROM system_config WHERE id = 'global'").get() as { registration_open: number } | undefined
+    const isRegistrationOpen = regConfig?.registration_open === 1
+
+    if (!isRegistrationOpen) {
+      return c.redirect(`${origin}/login?error=registration_closed`)
+    }
+
+    const id = nanoid()
+    const role = 'user'
+    const name = userData.name || email.split('@')[0]
+    db.insert(users).values({
+      id,
+      email,
+      username: name + '-' + nanoid(4),
+      passwordHash: await hashPassword(randomBytes(16).toString('hex')),
+      displayName: name,
+      role,
+    }).run()
+
+    db.insert(userOauthAccounts).values({
+      id: nanoid(),
+      userId: id,
+      providerId: 'google',
+      providerUserId,
+    }).run()
+
+    user = db.select().from(users).where(eq(users.id, id)).get()!
+  }
+
+  const payloadJwt = { sub: user.id, email: user.email, role: user.role }
+  const loginAccessToken = jwt.sign(payloadJwt, jwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRES })
+  const loginRefreshToken = jwt.sign({ sub: user.id, type: 'refresh' }, jwtSecret(), { expiresIn: REFRESH_TOKEN_EXPIRES })
+
+  db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.oauth.login', details: JSON.stringify({ provider: 'google' }) }).run()
+
+  const dataString = JSON.stringify({
+    accessToken: loginAccessToken,
+    refreshToken: loginRefreshToken,
+    token: loginAccessToken,
+    expiresIn: 900,
+    user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role }
+  })
+
+  return c.html(`<script>window.opener.postMessage({ type: 'oauth-login-success', data: ${dataString} }, '*'); window.close();</script>`)
+})
+
+// GET /api/auth/oauth/status
+router.get('/oauth/status', authGuard, async (c) => {
+  const user = c.get('user')!
+  const db = getDb()
+  const binds = db.select({ providerId: userOauthAccounts.providerId }).from(userOauthAccounts).where(eq(userOauthAccounts.userId, user.id)).all()
+  return c.json({ code: 0, data: { github: binds.some((b: any) => b.providerId === 'github'), google: binds.some((b: any) => b.providerId === 'google') } })
+})
+
+// POST /api/auth/oauth/unbind
+router.post('/oauth/unbind', authGuard, zValidator('json', z.object({ provider: z.string() })), async (c) => {
+  const user = c.get('user')!
+  const { provider } = c.req.valid('json')
+  const db = getDb()
+  db.delete(userOauthAccounts).where(and(eq(userOauthAccounts.userId, user.id), eq(userOauthAccounts.providerId, provider))).run()
+  db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.oauth.unbind', details: JSON.stringify({ provider }) }).run()
+  return c.json({ code: 0, message: `${provider} unbound successfully` })
+})
+
 export { router as authRouter }
+

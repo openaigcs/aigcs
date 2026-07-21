@@ -4,6 +4,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { PrimaryButton, Input, SecondaryButton } from '../components/ui'
+import { startAuthentication } from '@simplewebauthn/browser'
+import GithubIcon from '@lobehub/icons/es/Github'
+import GoogleIcon from '@lobehub/icons/es/Google'
 
 export const Route = createRoute({
   getParentRoute: () => rootRoute,
@@ -11,6 +14,76 @@ export const Route = createRoute({
   component: () => {
     const { t } = useTranslation()
     const [mode, setMode] = useState<'login' | 'register'>('login')
+    const [oauthError, setOauthError] = useState<string | null>(null)
+    const [passkeyLoading, setPasskeyLoading] = useState(false)
+
+    useEffect(() => {
+      const search = window.location.search
+      const params = new URLSearchParams(search)
+      if (params.get('error') === 'registration_closed') {
+        setOauthError(t('login.errorRegistrationClosedOauth'))
+      }
+
+      const handleMessage = (e: MessageEvent) => {
+        if (e.data?.type === 'oauth-login-success') {
+          const authData = e.data.data
+          localStorage.setItem('token', authData.token)
+          localStorage.setItem('accessToken', authData.accessToken)
+          localStorage.setItem('refreshToken', authData.refreshToken)
+          window.location.href = '/'
+        }
+      }
+      window.addEventListener('message', handleMessage)
+      return () => window.removeEventListener('message', handleMessage)
+    }, [t])
+
+    const handleOauthLogin = (provider: 'github' | 'google') => {
+      setOauthError(null)
+      const width = 600
+      const height = 680
+      const left = window.screen.width / 2 - width / 2
+      const top = window.screen.height / 2 - height / 2
+      window.open(
+        `/api/auth/oauth/${provider}`,
+        'OAuthLogin',
+        `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes,scrollbars=yes`
+      )
+    }
+
+    const handlePasskeyLogin = async () => {
+      setOauthError(null)
+      setPasskeyLoading(true)
+      try {
+        const optionsRes = await fetch('/api/auth/passkey/login-options', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        })
+        const optionsJson = await optionsRes.json()
+        if (optionsJson.code !== 0) throw new Error(optionsJson.message)
+
+        const { options, optionId } = optionsJson.data
+        const assertion = await startAuthentication({ optionsJSON: options })
+
+        const verifyRes = await fetch('/api/auth/passkey/login-verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ optionId, assertion }),
+        })
+        const verifyJson = await verifyRes.json()
+        if (verifyJson.code !== 0) throw new Error(verifyJson.message)
+
+        const authData = verifyJson.data
+        localStorage.setItem('token', authData.token)
+        localStorage.setItem('accessToken', authData.accessToken)
+        localStorage.setItem('refreshToken', authData.refreshToken)
+        window.location.href = '/'
+      } catch (err: any) {
+        setOauthError(err.message || 'Passkey verification failed')
+      } finally {
+        setPasskeyLoading(false)
+      }
+    }
+
     const [email, setEmail] = useState('')
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
@@ -289,6 +362,7 @@ export const Route = createRoute({
         ) : (
           <>
           {mutation.isError && <p className="text-red-500 mb-4">{getErrorMessage(mutation.error)}</p>}
+          {oauthError && <p className="text-red-500 mb-4">{oauthError}</p>}
 
           <form onSubmit={(e) => {
             e.preventDefault()
@@ -358,6 +432,42 @@ export const Route = createRoute({
                 : mode === 'login' ? t('login.title') : t('login.register')}
             </PrimaryButton>
           </form>
+          {mode === 'login' && (
+            <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-6">
+              <p className="text-center text-xs text-gray-500 mb-4">{t('login.or')}</p>
+              <div className="space-y-2">
+                <SecondaryButton
+                  type="button"
+                  onClick={handlePasskeyLogin}
+                  disabled={passkeyLoading}
+                  className="w-full flex items-center justify-center gap-2 cursor-pointer py-2 border rounded hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <svg className="w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+                  </svg>
+                  {t('login.passkey')}
+                </SecondaryButton>
+                <div className="flex gap-2">
+                  <SecondaryButton
+                    type="button"
+                    onClick={() => handleOauthLogin('github')}
+                    className="flex-1 flex items-center justify-center gap-2 cursor-pointer py-2 border rounded hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <GithubIcon size={18} />
+                    {t('login.github')}
+                  </SecondaryButton>
+                  <SecondaryButton
+                    type="button"
+                    onClick={() => handleOauthLogin('google')}
+                    className="flex-1 flex items-center justify-center gap-2 cursor-pointer py-2 border rounded hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <GoogleIcon size={18} />
+                    {t('login.google')}
+                  </SecondaryButton>
+                </div>
+              </div>
+            </div>
+          )}
           </>
         )}
       </div>

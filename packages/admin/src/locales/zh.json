@@ -55,7 +55,12 @@
     "errorRegistrationClosed": "注册已关闭",
     "errorEmailTaken": "邮箱已被注册",
     "errorUsernameTaken": "用户名已被使用",
-    "errorTotpExpired": "TOTP 验证已过期或无效，请重新登录"
+    "errorTotpExpired": "TOTP 验证已过期或无效，请重新登录",
+    "or": "或使用以下方式",
+    "passkey": "使用 Passkey 免密登录",
+    "github": "GitHub 登录",
+    "google": "Google 登录",
+    "errorRegistrationClosedOauth": "系统已关闭注册，请联系管理员为您创建账号后再行绑定第三方账户。"
   },
   "settings": {
     "title": "系统设置",
@@ -392,7 +397,22 @@
     "avatarUpload": "上传头像",
     "avatarRemove": "移除",
     "avatarHint": "最大 512×512px，支持 PNG、JPG、GIF、WebP",
-    "avatarTooLarge": "文件过大（最大 2MB）"
+    "avatarTooLarge": "文件过大（最大 2MB）",
+    "passkeys": "密钥 (Passkeys)",
+    "passkeysDescription": "通过指纹、面容或设备 PIN 码实现更安全的免密登录。",
+    "addPasskey": "添加 Passkey",
+    "passkeyNoKeys": "您还没有添加任何 Passkey。",
+    "passkeyAdded": "Passkey 添加成功",
+    "passkeyDeleted": "Passkey 已删除",
+    "oauth": "第三方账号关联",
+    "oauthDescription": "绑定第三方社交账号，支持一键快捷登录。",
+    "bind": "绑定",
+    "unbind": "解绑",
+    "bound": "已绑定",
+    "unbound": "未绑定",
+    "github": "GitHub 账号",
+    "google": "Google 账号",
+    "oauthBindSuccess": "第三方账号绑定成功"
   },
   "reactions": {
     "title": "反应类型",

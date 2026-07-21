@@ -55,7 +55,12 @@
     "errorRegistrationClosed": "Registration is closed",
     "errorEmailTaken": "Email already registered",
     "errorUsernameTaken": "Username already taken",
-    "errorTotpExpired": "TOTP challenge expired or invalid. Please login again."
+    "errorTotpExpired": "TOTP challenge expired or invalid. Please login again.",
+    "or": "or use",
+    "passkey": "Login with Passkey",
+    "github": "Login with GitHub",
+    "google": "Login with Google",
+    "errorRegistrationClosedOauth": "Registration is closed. Please ask the administrator to create your account first, then bind it."
   },
   "settings": {
     "title": "System Settings",
@@ -389,7 +394,22 @@
     "avatarUpload": "Upload Avatar",
     "avatarRemove": "Remove",
     "avatarHint": "Max 512×512px. PNG, JPG, GIF, WebP.",
-    "avatarTooLarge": "File too large (max 2MB)"
+    "avatarTooLarge": "File too large (max 2MB)",
+    "passkeys": "Passkeys",
+    "passkeysDescription": "Unlock secure, passwordless login using fingerprints, face scans, or device PINs.",
+    "addPasskey": "Add Passkey",
+    "passkeyNoKeys": "You haven't registered any Passkeys yet.",
+    "passkeyAdded": "Passkey added successfully",
+    "passkeyDeleted": "Passkey deleted",
+    "oauth": "Linked Accounts",
+    "oauthDescription": "Link third-party social accounts for one-click shortcut sign-in.",
+    "bind": "Link",
+    "unbind": "Unlink",
+    "bound": "Linked",
+    "unbound": "Not Linked",
+    "github": "GitHub Account",
+    "google": "Google Account",
+    "oauthBindSuccess": "Third-party account bound successfully"
   },
   "reactions": {
     "title": "Reaction Types",

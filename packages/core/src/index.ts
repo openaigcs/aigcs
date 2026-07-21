@@ -1,4 +1,6 @@
 export * from './schema/users.js'
+export * from './schema/passkeys.js'
+export * from './schema/oauth.js'
 export * from './schema/sites.js'
 export * from './schema/providers.js'
 export * from './schema/prompts.js'

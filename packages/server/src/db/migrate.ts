@@ -307,6 +307,27 @@ CREATE TABLE IF NOT EXISTS email_unsubscribes (
   created_at TEXT NOT NULL,
   UNIQUE(email, context)
 );
+
+CREATE TABLE IF NOT EXISTS user_passkeys (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  credential_id TEXT UNIQUE NOT NULL,
+  public_key TEXT NOT NULL,
+  counter INTEGER NOT NULL DEFAULT 0,
+  device_type TEXT NOT NULL DEFAULT 'singleDevice',
+  backed_up INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS user_oauth_accounts (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider_id TEXT NOT NULL,
+  provider_user_id TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(provider_id, provider_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_passkeys_user ON user_passkeys(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_oauth_user ON user_oauth_accounts(user_id);
 `)
 
   // Add parent_id, edited_at, visitor_id to existing visitor_comments tables
@@ -747,6 +768,30 @@ CREATE TABLE IF NOT EXISTS mastodon_cached_comments (
   hidden TINYINT NOT NULL DEFAULT 0,
   INDEX idx_mcc_binding (binding_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_passkeys (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  credential_id VARCHAR(255) UNIQUE NOT NULL,
+  public_key TEXT NOT NULL,
+  counter INT NOT NULL DEFAULT 0,
+  device_type VARCHAR(50) NOT NULL DEFAULT 'singleDevice',
+  backed_up BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_up_user (user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_oauth_accounts (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  provider_id VARCHAR(50) NOT NULL,
+  provider_user_id VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_oauth (provider_id, provider_user_id),
+  INDEX idx_uoa_user (user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 `)
 
     console.log('[db] MySQL schema migrated successfully')
@@ -1101,6 +1146,28 @@ CREATE TABLE IF NOT EXISTS mastodon_cached_comments (
   hidden SMALLINT NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_mcc_binding ON mastodon_cached_comments(binding_id);
+
+CREATE TABLE IF NOT EXISTS user_passkeys (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  credential_id VARCHAR(255) UNIQUE NOT NULL,
+  public_key TEXT NOT NULL,
+  counter INT NOT NULL DEFAULT 0,
+  device_type VARCHAR(50) NOT NULL DEFAULT 'singleDevice',
+  backed_up BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_up_user_pg ON user_passkeys(user_id);
+
+CREATE TABLE IF NOT EXISTS user_oauth_accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider_id VARCHAR(50) NOT NULL,
+  provider_user_id VARCHAR(255) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(provider_id, provider_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_uoa_user_pg ON user_oauth_accounts(user_id);
 `)
 
     console.log('[db] PostgreSQL schema migrated successfully')

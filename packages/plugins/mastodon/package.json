@@ -6,11 +6,11 @@
   "type": "module",
   "private": true,
   "dependencies": {
-    "hono": "^4.12.25",
-    "zod": "^4.4.3",
+    "@aigcs/core": "workspace:*",
     "@hono/zod-validator": "^0.8.0",
-    "nanoid": "^5.1.11",
     "drizzle-orm": "^0.45.2",
-    "@aigcs/core": "workspace:*"
+    "hono": "^4.12.31",
+    "nanoid": "^5.1.16",
+    "zod": "^4.4.3"
   }
 }

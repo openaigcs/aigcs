@@ -24,12 +24,23 @@ export async function sendEmail(to: string, subject: string, html: string) {
     },
   })
 
-  await transporter.sendMail({
-    from: `"${config.smtp_from_name || 'AIGCS Notify'}" <${config.smtp_from_email || 'noreply@aigcs.local'}>`,
-    to,
-    subject,
-    html,
-  })
-
-  console.log(`[email] Sent to ${to}: ${subject}`)
+  try {
+    await transporter.sendMail({
+      from: `"${config.smtp_from_name || 'AIGCS Notify'}" <${config.smtp_from_email || 'noreply@aigcs.local'}>`,
+      to,
+      subject,
+      html,
+    })
+    console.log(`[email] Sent to ${to}: ${subject}`)
+  } catch (err: any) {
+    console.error(`[email] Failed to send email to ${to}:`, err)
+    try {
+      const adminUser = raw.prepare?.("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get() as { id: string } | undefined
+      if (adminUser?.id) {
+        const { createNotification } = await import('./notification.js')
+        createNotification(adminUser.id, 'error', '邮件发送失败', `发往 ${to} 的邮件发送失败: ${err?.message || err}`)
+      }
+    } catch {}
+    throw err
+  }
 }

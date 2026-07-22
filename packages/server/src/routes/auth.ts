@@ -21,6 +21,7 @@ import { encrypt, decrypt } from '../services/encryption.js'
 import { createHash, randomBytes } from 'node:crypto'
 import { writeFile, mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { createNotification } from '../services/notification.js'
 
 // In-memory temp token store for TOTP challenge
 const totpChallengeStore = new Map<string, { userId: string; expiresAt: number }>()
@@ -230,6 +231,16 @@ router.post('/register', zValidator('json', registerSchema), async (c) => {
     }
   } catch (err) {
     console.error('[auth] Welcome email failed:', err)
+  }
+
+  createNotification(id, 'success', '注册成功', '欢迎加入 AIGCS！您的账户已成功创建。')
+  if (!isFirstUser) {
+    try {
+      const admins = db.select({ id: users.id }).from(users).where(eq(users.role, 'admin')).all()
+      for (const admin of admins) {
+        createNotification(admin.id, 'info', '新用户注册通知', `新用户 "${displayName || username || email}" (${email}) 已注册系统。`)
+      }
+    } catch {}
   }
 
   const accessToken = jwt.sign({ sub: id, email, role }, jwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRES })
@@ -503,6 +514,7 @@ router.post('/change-password', authGuard, zValidator('json', changePasswordSche
   db.update(users).set({ passwordHash: newHash, updatedAt: new Date().toISOString() }).where(eq(users.id, user.id)).run()
 
   db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.password.change' }).run()
+  createNotification(user.id, 'warning', '密码修改通知', '您的账户密码已成功修改。如非本人操作，请立即检查账号安全。')
 
   return c.json({ code: 0, message: 'Password changed successfully' })
 })
@@ -563,6 +575,7 @@ router.post('/totp/enable', authGuard, zValidator('json', totpEnableSchema), asy
   }).where(eq(users.id, user.id)).run()
 
   db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.totp.enable' }).run()
+  createNotification(user.id, 'success', 'TOTP 双因素认证已启用', '您的账户已成功绑定并启用 TOTP 动态验证码。')
 
   return c.json({ code: 0, data: { backupCodes } })
 })
@@ -608,6 +621,7 @@ router.post('/totp/disable', authGuard, zValidator('json', totpDisableSchema), a
   }).where(eq(users.id, user.id)).run()
 
   db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.totp.disable' }).run()
+  createNotification(user.id, 'warning', 'TOTP 双因素认证已禁用', '您的账户已成功禁用 TOTP 双因素认证。')
 
   return c.json({ code: 0, message: 'TOTP disabled' })
 })
@@ -761,6 +775,7 @@ router.delete('/passkey/delete/:id', authGuard, async (c) => {
   const db = getDb()
   db.delete(userPasskeys).where(and(eq(userPasskeys.id, id), eq(userPasskeys.userId, user.id))).run()
   db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.passkey.delete', details: JSON.stringify({ id }) }).run()
+  createNotification(user.id, 'warning', 'Passkey 密钥已删除', '您的账户下包含的一项 Passkey 免密登录密钥已被删除。')
   return c.json({ code: 0, message: 'Passkey deleted' })
 })
 
@@ -852,6 +867,7 @@ router.post('/passkey/register-verify', authGuard, async (c) => {
   } as any).run()
 
   db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.passkey.register' }).run()
+  createNotification(user.id, 'success', 'Passkey 密钥绑定成功', '已成功为您的账户注册并绑定了一个新的 Passkey 免密登录密钥。')
 
   return c.json({ code: 0, message: 'Passkey registered successfully' })
 })
@@ -1318,6 +1334,7 @@ router.post('/oauth/unbind', authGuard, zValidator('json', z.object({ provider: 
   const db = getDb()
   db.delete(userOauthAccounts).where(and(eq(userOauthAccounts.userId, user.id), eq(userOauthAccounts.providerId, provider))).run()
   db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.oauth.unbind', details: JSON.stringify({ provider }) }).run()
+  createNotification(user.id, 'info', '第三方账号解绑通知', `已成功从您的账户解绑 ${provider.toUpperCase()} 快捷登录方式。`)
   return c.json({ code: 0, message: `${provider} unbound successfully` })
 })
 

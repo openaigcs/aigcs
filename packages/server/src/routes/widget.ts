@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { getDb, getRawDb } from '../db/index.js'
 import { comments, pageCache, providers, sites, users, reactionTypes } from '@aigcs/core'
-import { eq, and, sql } from 'drizzle-orm'
+import { eq, and, sql, asc } from 'drizzle-orm'
 import { HTTPException } from 'hono/http-exception'
 import { createHash, createHmac, randomUUID } from 'node:crypto'
 import DOMPurify from 'dompurify'
@@ -209,16 +209,21 @@ router.get('/:domain/comments', async (c) => {
     .select()
     .from(providers)
     .where(eq(providers.siteId, site.id))
+    .orderBy(asc(providers.sortWeight), asc(providers.createdAt))
     .all() as any[]
   const providerAvatarMap: Record<string, string> = {}
-  for (const p of providerRows) {
+  const providerOrderMap = new Map<string, number>()
+  providerRows.forEach((p, idx) => {
+    const weight = p.sortWeight ?? idx
+    providerOrderMap.set(p.displayName, weight)
+    providerOrderMap.set(p.name, weight)
     if (p.avatarSvg && p.avatarSvg !== '#empty-content') {
       providerAvatarMap[p.displayName] = p.avatarSvg
     } else {
       const fallback = getProviderAvatar(p.name)
       if (fallback) providerAvatarMap[p.displayName] = fallback
     }
-  }
+  })
 
   const commentIds = (commentList as any[]).map((c: any) => c.id)
   const commentReactionsMap = new Map<string, Record<string, number>>()
@@ -237,9 +242,8 @@ router.get('/:domain/comments', async (c) => {
     }
   }
 
-  const providersList = db.select().from(providers).where(eq(providers.siteId, site.id)).all() as any[]
   const providerModelMap = new Map<string, string>()
-  for (const p of providersList) {
+  for (const p of providerRows) {
     if (p.modelDisplayName) {
       providerModelMap.set(p.displayName, p.modelDisplayName)
     }
@@ -260,6 +264,15 @@ router.get('/:domain/comments', async (c) => {
       reactions: commentReactionsMap.get(c.id) || {},
       userVoted: commentVotesMap.get(c.id) || [],
     }
+  })
+
+  commentDTOs.sort((a, b) => {
+    const weightA = providerOrderMap.get(a.providerName) ?? 999999
+    const weightB = providerOrderMap.get(b.providerName) ?? 999999
+    if (weightA !== weightB) {
+      return weightA - weightB
+    }
+    return new Date(a.generatedAt).getTime() - new Date(b.generatedAt).getTime()
   })
 
   // Run onFetchComments hook — plugins can add visitor comments

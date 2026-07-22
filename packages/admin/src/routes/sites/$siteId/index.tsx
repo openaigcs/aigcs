@@ -672,10 +672,12 @@ function CommentImportExport({ siteId }: { siteId: string }) {
 function ProvidersTab({ siteId }: { siteId: string }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-    const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<any>({})
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
+  const [showReorderModal, setShowReorderModal] = useState(false)
+  const [reorderList, setReorderList] = useState<any[]>([])
   const [addForm, setAddForm] = useState({
     name: '', displayName: '', providerType: 'native', apiKey: '',
     apiEndpoint: '', model: '', enabled: true, showOnFrontend: true,
@@ -684,6 +686,33 @@ function ProvidersTab({ siteId }: { siteId: string }) {
   const { data: providers, isLoading, isError, error } = useQuery({
     queryKey: ['site-providers', siteId],
     queryFn: () => api<any[]>(`/api/admin/sites/${siteId}/providers`),
+  })
+
+  useEffect(() => {
+    if (showReorderModal && providers) {
+      setReorderList([...providers])
+    }
+  }, [showReorderModal, providers])
+
+  const moveReorderItem = (index: number, direction: 'up' | 'down') => {
+    const list = [...reorderList]
+    const target = direction === 'up' ? index - 1 : index + 1
+    if (target < 0 || target >= list.length) return
+    const [moved] = list.splice(index, 1)
+    list.splice(target, 0, moved)
+    setReorderList(list)
+  }
+
+  const reorderMutation = useMutation({
+    mutationFn: (providerIds: string[]) =>
+      api(`/api/admin/sites/${siteId}/providers/reorder`, {
+        method: 'PUT',
+        body: JSON.stringify({ providerIds }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['site-providers', siteId] })
+      setShowReorderModal(false)
+    },
   })
 
   const toggleMutation = useMutation({
@@ -774,9 +803,16 @@ function ProvidersTab({ siteId }: { siteId: string }) {
     <div className="max-w-3xl">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold dark:text-white">{t('sites.providers')}</h3>
-        <SecondaryButton onClick={() => { setShowAddForm(!showAddForm); setEditingId(null) }}>
-          {showAddForm ? t('common.cancel') : t('sites.addProvider')}
-        </SecondaryButton>
+        <div className="flex items-center gap-2">
+          {providers && providers.length > 1 && (
+            <SecondaryButton onClick={() => { setShowReorderModal(true); setShowAddForm(false); setEditingId(null) }}>
+              {t('sites.reorderProviders')}
+            </SecondaryButton>
+          )}
+          <SecondaryButton onClick={() => { setShowAddForm(!showAddForm); setEditingId(null); setShowReorderModal(false) }}>
+            {showAddForm ? t('common.cancel') : t('sites.addProvider')}
+          </SecondaryButton>
+        </div>
       </div>
 
       {showAddForm && (
@@ -969,6 +1005,74 @@ function ProvidersTab({ siteId }: { siteId: string }) {
               
             </div>
           ))}
+        </div>
+      )}
+
+      {showReorderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 max-w-md w-full p-5 space-y-4 shadow-xl">
+            <div className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-3">
+              <h3 className="text-lg font-semibold dark:text-white">{t('sites.reorderModalTitle')}</h3>
+              <button
+                type="button"
+                onClick={() => setShowReorderModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t('sites.reorderModalHint')}</p>
+            
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+              {reorderList.map((p, idx) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200">
+                      #{idx + 1}
+                    </span>
+                    <ProviderIcon name={p.name} avatarSvg={p.avatarSvg} size={20} />
+                    <span className="text-sm font-medium dark:text-gray-200">{p.displayName}</span>
+                    {p.model && (
+                      <span className="text-xs text-gray-400">({p.modelDisplayName || p.model})</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={idx === 0}
+                      onClick={() => moveReorderItem(idx, 'up')}
+                      className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                    >
+                      ▲ {t('sites.moveUp')}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={idx === reorderList.length - 1}
+                      onClick={() => moveReorderItem(idx, 'down')}
+                      className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                    >
+                      ▼ {t('sites.moveDown')}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <SecondaryButton onClick={() => setShowReorderModal(false)}>
+                {t('common.cancel')}
+              </SecondaryButton>
+              <PrimaryButton
+                disabled={reorderMutation.isPending}
+                onClick={() => reorderMutation.mutate(reorderList.map(p => p.id))}
+              >
+                {reorderMutation.isPending ? t('common.loading') : t('sites.saveOrder')}
+              </PrimaryButton>
+            </div>
+          </div>
         </div>
       )}
     </div>

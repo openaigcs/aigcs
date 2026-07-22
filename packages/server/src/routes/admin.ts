@@ -7,7 +7,7 @@ import {
   reactionTypes, commentReactions, reactionVotes, comments, apiTokens, users, plugins,
   visitorComments, systemConfig,
 } from '@aigcs/core'
-import { eq, and, like, sql, inArray } from 'drizzle-orm'
+import { eq, and, like, sql, inArray, asc } from 'drizzle-orm'
 import { createHash, randomBytes } from 'node:crypto'
 import { HTTPException } from 'hono/http-exception'
 import { nanoid } from 'nanoid'
@@ -16,6 +16,7 @@ import { fireWebhook } from '../services/webhook.js'
 import { encrypt, decrypt, mask } from '../services/encryption.js'
 import { getBuiltinProviderNames } from '../providers/index.js'
 import { JSDOM } from 'jsdom'
+import { createNotification } from '../services/notification.js'
 
 const router = new Hono()
 router.use('*', authGuard)
@@ -23,6 +24,42 @@ router.use('*', authGuard)
 function md5(s: string): string {
   return createHash('md5').update(s).digest('hex')
 }
+
+// ── Providers ──
+
+router.get('/sites/:siteId/providers', async (c) => {
+  const siteId = c.req.param('siteId')
+  requireSiteOwnership(c, siteId)
+  const db = getDb()
+  const list = db.select().from(providers).where(eq(providers.siteId, siteId)).orderBy(asc(providers.sortWeight), asc(providers.createdAt)).all()
+  const masked = (list as any[]).map(p => ({ ...p, apiKey: mask(p.apiKey) }))
+  return c.json({ code: 0, data: masked })
+})
+
+router.put('/sites/:siteId/providers/reorder', zValidator('json', z.object({
+  providerIds: z.array(z.string()),
+})), async (c) => {
+  const siteId = c.req.param('siteId')
+  requireSiteOwnership(c, siteId)
+  const { providerIds } = c.req.valid('json')
+  const db = getDb()
+
+  for (let i = 0; i < providerIds.length; i++) {
+    db.update(providers)
+      .set({ sortWeight: i, updatedAt: new Date().toISOString() })
+      .where(and(eq(providers.id, providerIds[i]), eq(providers.siteId, siteId)))
+      .run()
+  }
+
+  db.insert(auditLog).values({
+    id: nanoid(),
+    userId: (c.get('user')!).id,
+    action: 'site.providers.reorder',
+    details: JSON.stringify({ siteId, providerIds }),
+  }).run()
+
+  return c.json({ code: 0, message: 'Providers reordered successfully' })
+})
 
 function insertAuditLog(db: any, values: Record<string, any>) {
   db.insert(auditLog).values({ ...values, createdAt: values.createdAt || new Date().toISOString() }).run()
@@ -164,6 +201,8 @@ router.post('/sites', zValidator('json', z.object({
     details: { domain, name },
   })
 
+  createNotification(user.id, 'info', '新建站点成功', `成功添加新站点 "${name || domain}" (${domain})`, id)
+
   return c.json({ code: 0, data: { id, domain, name: name || domain } })
 })
 
@@ -183,6 +222,8 @@ router.delete('/sites/:id', async (c) => {
     action: 'site.delete',
     details: { domain: site.domain },
   })
+
+  createNotification(user.id, 'warning', '站点已删除', `站点 "${site.name}" (${site.domain}) 及其配置与数据已被彻底删除`)
 
   return c.json({ code: 0 })
 })
@@ -327,6 +368,9 @@ router.post('/sites/:siteId/providers', zValidator('json', z.object({
     } catch {}
   }
 
+  const maxWeightRow = raw.prepare("SELECT MAX(sort_weight) as maxWeight FROM providers WHERE site_id = ?").get(siteId) as { maxWeight: number | null } | undefined
+  const calculatedSortWeight = body.sortWeight && body.sortWeight !== 0 ? body.sortWeight : ((maxWeightRow?.maxWeight ?? -1) + 1)
+
   db.insert(providers).values({
     ...body,
     id,
@@ -334,6 +378,7 @@ router.post('/sites/:siteId/providers', zValidator('json', z.object({
     apiKey: encrypt(apiKey),
     apiEndpoint,
     model,
+    sortWeight: calculatedSortWeight,
     enabled: Number(body.enabled),
     showOnFrontend: Number(body.showOnFrontend),
   } as any).run()
@@ -398,6 +443,8 @@ router.post('/sites/:siteId/providers', zValidator('json', z.object({
   } catch (err) {
     console.error('[webhook] Failed to fire provider.created:', err)
   }
+
+  createNotification(user.id, 'info', '添加 AI 提供商', `站点已成功添加 AI 提供商 "${body.displayName}"`, siteId)
 
   return c.json({ code: 0, data: { id } })
 })
@@ -492,6 +539,7 @@ router.delete('/sites/:siteId/providers/:providerId', async (c) => {
   db.delete(providers).where(eq(providers.id, providerId)).run()
   const user = c.get('user')!
   insertAuditLog(db, { id: nanoid(), userId: user.id, action: 'provider.delete', details: { siteId, providerId, name: provider.name, displayName: provider.displayName } })
+  createNotification(user.id, 'warning', '删除 AI 提供商', `已删除站点 AI 提供商 "${provider.displayName}"`, siteId)
   return c.json({ code: 0 })
 })
 
@@ -525,6 +573,8 @@ router.post('/sites/:siteId/providers/:providerId/delete-comments', async (c) =>
     action: 'provider.delete_comments',
     details: { siteId, providerId, providerName: provider.displayName, deletedCount: result.changes }
   })
+
+  createNotification(user.id, 'warning', '清理 AI 评论通知', `已为提供商 "${provider.displayName}" 成功被删除 ${result.changes} 条评论`, siteId)
 
   return c.json({ code: 0, data: { deletedCount: result.changes } })
 })
@@ -933,6 +983,8 @@ router.post('/sites/:siteId/cache/clear', async (c) => {
     console.error('[webhook] Failed to fire cache.cleared:', err)
   }
 
+  createNotification(user.id, 'warning', '清理评论缓存通知', path ? `已成功清空页面 "${path}" 的评论数据` : '已成功清空当前站点的全部评论数据', siteId)
+
   return c.json({ code: 0 })
 })
 
@@ -1017,6 +1069,8 @@ router.post('/sites/:siteId/cache/delete-all', async (c) => {
     action: 'cache.delete_all',
     details: { siteId, count: entries.length },
   })
+
+  createNotification(user.id, 'warning', '清空全部文章缓存', `已成功清空当前站点下全部 ${entries.length} 篇文章页面缓存数据`, siteId)
 
   return c.json({ code: 0, data: { deleted: entries.length, entries } })
 })
@@ -1359,6 +1413,9 @@ router.post('/sites/:siteId/cache/fetch', zValidator('json', z.object({
     }
   }
 
+  const user = c.get('user')!
+  createNotification(user.id, 'info', '文章抓取完成', `成功提取 ${fetched}/${paths.length} 篇文章的内容`, siteId)
+
   return c.json({ code: 0, data: { fetched } })
 })
 
@@ -1385,6 +1442,14 @@ router.post('/sites/:siteId/cache/generate', zValidator('json', z.object({
     } catch {
       // skip failed
     }
+  }
+
+  const { createNotification } = await import('../services/notification.js')
+  const user = c.get('user')!
+  if (generated > 0) {
+    createNotification(user.id, 'success', '所选文章评论生成完成', `成功为 ${paths.length} 篇文章生成 ${generated} 条 AI 评论`, siteId)
+  } else {
+    createNotification(user.id, 'warning', '所选文章评论生成未产生新内容', `未能为选中的 ${paths.length} 篇文章生成评论`, siteId)
   }
 
   return c.json({ code: 0, data: { generated } })
@@ -1554,6 +1619,7 @@ router.post('/api-tokens', zValidator('json', z.object({
   db.insert(apiTokens).values({ id, userId: user.id, name, tokenHash, tokenPrefix, scope } as any).run()
 
   insertAuditLog(db, { id: nanoid(), userId: user.id, action: 'api-token.create', details: { name, scope } })
+  createNotification(user.id, 'info', '创建 API 密钥', `已成功为应用生成名为 "${name}" 的 API Token 密钥 (权限: ${scope})`)
   return c.json({ code: 0, data: { id, name, token } })
 })
 
@@ -1562,12 +1628,13 @@ router.delete('/api-tokens/:id', async (c) => {
   const db = getDb()
   const id = c.req.param('id')
 
-  const token = db.select().from(apiTokens).where(and(eq(apiTokens.id, id), eq(apiTokens.userId, user.id))).get()
+  const token = db.select().from(apiTokens).where(and(eq(apiTokens.id, id), eq(apiTokens.userId, user.id))).get() as any
   if (!token) throw new HTTPException(404, { message: 'API token not found' })
 
   db.delete(apiTokens).where(eq(apiTokens.id, id)).run()
 
   insertAuditLog(db, { id: nanoid(), userId: user.id, action: 'api-token.delete', details: { id } })
+  createNotification(user.id, 'warning', '撤销 API 密钥', `系统已撤销名为 "${token.name || 'API Key'}" 的 API Token 密钥`)
   return c.json({ code: 0 })
 })
 
@@ -1598,6 +1665,9 @@ router.post('/sites/:siteId/comments/generate', zValidator('json', generateComme
 
   // Trigger generation — generateComments fetches content using site settings + optional user selector
   const { generateComments } = await import('../routes/widget.js')
+  const { createNotification } = await import('../services/notification.js')
+  const user = c.get('user')!
+
   try {
     const result = await Promise.race([
       generateComments(siteId, path, (site as any).domain, undefined, undefined, { userSelector: selector }),
@@ -1605,11 +1675,14 @@ router.post('/sites/:siteId/comments/generate', zValidator('json', generateComme
     ]) as { success: number; total: number; errors: string[] }
 
     if (result.success > 0) {
+      createNotification(user.id, 'success', '单篇评论生成成功', `页面 "${path}" 成功生成 ${result.success}/${result.total} 条 AI 评论`, siteId)
       return c.json({ code: 0, message: `Generated ${result.success}/${result.total} comments`, data: { path, ...result } })
     }
     const errMsg = result.errors[0] || 'All providers failed'
+    createNotification(user.id, 'error', '单篇评论生成失败', `页面 "${path}" 生成失败: ${errMsg}`, siteId)
     return c.json({ code: 1, message: `Generation failed: ${errMsg}` })
   } catch (err) {
+    createNotification(user.id, 'error', '单篇评论生成超时', `页面 "${path}" 生成过程出现错误或超时`, siteId)
     return c.json({ code: 1, message: `Generation failed: ${err}` })
   }
 })
@@ -1652,6 +1725,7 @@ router.put('/system/config', requireRole('admin'), async (c) => {
 
   const user = c.get('user')!
   insertAuditLog(getDb(), { id: nanoid(), userId: user.id, action: 'system.config.update', details: {} })
+  createNotification(user.id, 'info', '系统全局配置已更新', '管理员已成功更新系统全局配置 (如 SMTP/跨域/安全白名单等)。')
   return c.json({ code: 0 })
 })
 

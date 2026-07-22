@@ -32,8 +32,21 @@ export async function fireWebhook(siteId: string, event: string, data: Record<st
         method: 'POST',
         headers,
         body: payload,
-      }).catch((err) => {
+      }).then(async (res) => {
+        if (!res.ok) {
+          const site = raw.prepare?.(`SELECT user_id FROM sites WHERE id = ?`).get(siteId) as { user_id: string } | undefined
+          if (site?.user_id) {
+            const { createNotification } = await import('./notification.js')
+            createNotification(site.user_id, 'warning', 'Webhook 响应异常', `Webhook 推送至 "${webhook.url}" 返回 HTTP ${res.status}`, siteId)
+          }
+        }
+      }).catch(async (err) => {
         console.error(`[webhook] Error firing webhook ${webhook.id}:`, err)
+        const site = raw.prepare?.(`SELECT user_id FROM sites WHERE id = ?`).get(siteId) as { user_id: string } | undefined
+        if (site?.user_id) {
+          const { createNotification } = await import('./notification.js')
+          createNotification(site.user_id, 'error', 'Webhook 推送失败', `Webhook 推送至 "${webhook.url}" 出错: ${err.message || err}`, siteId)
+        }
       })
     }
   } catch (err) {

@@ -11,6 +11,7 @@ interface CommentDTO {
   id: string
   providerName: string
   model: string
+  prompt?: string
   authorName: string
   authorAvatar: string
   avatarSvg: string
@@ -61,6 +62,7 @@ class AIGCSWidget extends HTMLElement {
   private visitorComments: VisitorCommentDTO[] = []
   private pluginConfig: Record<string, unknown> | null = null
   private showAiBadge = true
+  private showAiPrompt = true
   private aiBadgePosition = 'nick'
   private showReactions = false
   private showAiReactions = true
@@ -264,6 +266,7 @@ class AIGCSWidget extends HTMLElement {
         ? (rawConfig.commentPlugin.length > 0 ? rawConfig : null)
         : (rawConfig.commentPlugin ? rawConfig : null)
       this.showAiBadge = rawConfig.showAiBadge !== false
+      this.showAiPrompt = rawConfig.showAiPrompt !== false
       this.aiBadgePosition = (rawConfig.aiBadgePosition as string) || 'nick'
       this.showFediBadge = rawConfig.showFediBadge !== false
       this.enabledCommentPlugins = Array.isArray(rawConfig.enabledCommentPlugins) ? rawConfig.enabledCommentPlugins : []
@@ -540,7 +543,15 @@ class AIGCSWidget extends HTMLElement {
       }
     }
 
-    const modelHtml = type === 'ai' && data.showModel && data.model ? `<span class="aigcs-comment-model">· ${data.model}</span>` : ''
+    const promptHtml = type === 'ai' && this.showAiPrompt && data.prompt ? `
+      <span class="aigcs-prompt-trigger" data-tooltip="${this.escapeHtml(data.prompt)}">
+        <svg class="aigcs-prompt-icon" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+          <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+          <path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217c.004.131.11.237.24.237h1.036a.237.237 0 0 0 .237-.233v-.122c0-.52.277-.825.864-1.25.753-.546 1.488-1.119 1.488-2.348 0-1.802-1.39-2.586-2.73-2.586-1.472 0-2.67.794-2.748 2.477zm1.884 6.782c0 .602.438.995 1.042.995.592 0 1.035-.393 1.035-.995 0-.6-.443-.995-1.035-.995-.604 0-1.042.395-1.042.995z"/>
+        </svg>
+      </span>
+    ` : ''
+    const modelHtml = type === 'ai' && data.showModel && data.model ? `<span class="aigcs-comment-model">· ${data.model}${promptHtml}</span>` : ''
     const reactionsHtml = !isSoftDeleted && data.reactions && (type === 'ai' ? this.showAiReactions : type === 'fedi' ? false : this.showReactions) ? this.renderReactions(data) : ''
 
     const emptyNote = type === 'ai' && data.authorAvatar === '#empty-content'

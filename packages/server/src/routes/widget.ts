@@ -243,10 +243,24 @@ router.get('/:domain/comments', async (c) => {
   }
 
   const providerModelMap = new Map<string, string>()
+  const providerPromptMap = new Map<string, string>()
+  const globalCfg = raw.prepare("SELECT global_system_prompt FROM system_config WHERE id = 'global'").get() as { global_system_prompt: string | null } | undefined
+  const defaultGlobalPrompt = globalCfg?.global_system_prompt || ''
+
   for (const p of providerRows) {
     if (p.modelDisplayName) {
       providerModelMap.set(p.displayName, p.modelDisplayName)
     }
+    let promptContent = ''
+    if (p.promptTemplateId) {
+      const tmpl = raw.prepare('SELECT content FROM prompt_templates WHERE id = ?').get(p.promptTemplateId) as { content: string } | undefined
+      if (tmpl?.content) promptContent = tmpl.content
+    }
+    if (!promptContent) {
+      promptContent = defaultGlobalPrompt
+    }
+    providerPromptMap.set(p.displayName, promptContent)
+    providerPromptMap.set(p.name, promptContent)
   }
 
   const commentDTOs = (commentList as any[]).map((c: any) => {
@@ -255,6 +269,7 @@ router.get('/:domain/comments', async (c) => {
       id: c.id,
       providerName: c.providerName,
       model: displayModel,
+      prompt: providerPromptMap.get(c.providerName) || '',
       authorName: c.authorName,
       authorAvatar: c.authorAvatar,
       avatarSvg: providerAvatarMap[c.providerName] || '',
@@ -284,9 +299,12 @@ router.get('/:domain/comments', async (c) => {
   })
 
   const responseConfig: Record<string, unknown> = {
-    theme: themeConfig,
+    theme: siteSettings.theme || 'auto',
+    lightTheme: siteSettings.lightTheme || 'light',
+    darkTheme: siteSettings.darkTheme || 'dark_dimmed',
     showAiBadge: siteSettings.showAiBadge ?? true,
     showAiModel: siteSettings.showAiModel ?? true,
+    showAiPrompt: siteSettings.showAiPrompt ?? true,
     aiBadgePosition: siteSettings.aiBadgePosition || 'nick',
     showFediBadge: (siteSettings.fediConfig?.showBadge ?? true) as boolean,
     enabledCommentPlugins: Array.isArray(siteSettings.commentPlugin) ? siteSettings.commentPlugin : ['native', 'mastodon'],

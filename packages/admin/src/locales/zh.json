@@ -271,6 +271,8 @@
     "viewContext": "在内容管理中查看上下文",
     "showAiModel": "AI 评论显示 AI 模型名称",
     "showAiModelHint": "在 AI 生成评论的昵称/时间旁边显示所使用的 AI 模型名称。",
+    "showAiPrompt": "AI 评论显示提示词",
+    "showAiPromptHint": "在 Widget 模型名称右侧显示问号图标，鼠标悬停时可查看该评论使用的提示词。",
     "showAiBadge": "AI 评论显示 AI 角标",
     "showAiBadgeHint": "在 AI 生成评论的头像上显示 AI 角标。",
     "showReactions": "评论显示表情反应",

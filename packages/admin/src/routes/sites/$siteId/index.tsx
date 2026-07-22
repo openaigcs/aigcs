@@ -155,6 +155,7 @@ function SettingsTab({ siteId, site, siteDomain, contentSelector, setContentSele
   const [darkThemeVal, setDarkThemeVal] = useState(site.settings?.darkTheme || 'dark_dimmed')
   const [showAiBadge, setShowAiBadge] = useState(site.settings?.showAiBadge !== false)
   const [showAiModel, setShowAiModel] = useState(site.settings?.showAiModel !== false)
+  const [showAiPrompt, setShowAiPrompt] = useState(site.settings?.showAiPrompt !== false)
   const [aiBadgePosition, setAiBadgePosition] = useState(site.settings?.aiBadgePosition || 'nick')
   const [showReactions, setShowReactions] = useState(site.settings?.showReactions !== false)
   const [emailNotifyComments, setEmailNotifyComments] = useState(!!site.settings?.emailNotifyComments)
@@ -162,7 +163,7 @@ function SettingsTab({ siteId, site, siteDomain, contentSelector, setContentSele
   const savedSettingsRef = useRef('')
 
   function getSettingsSnapshot() {
-    return JSON.stringify({ localVal, autoGen, editName, editDomain, themeVal, lightThemeVal, darkThemeVal, showAiBadge, showAiModel, aiBadgePosition, showReactions, emailNotifyComments, commentGeneratedTemplate })
+    return JSON.stringify({ localVal, autoGen, editName, editDomain, themeVal, lightThemeVal, darkThemeVal, showAiBadge, showAiModel, showAiPrompt, aiBadgePosition, showReactions, emailNotifyComments, commentGeneratedTemplate })
   }
 
   useEffect(() => {
@@ -192,6 +193,7 @@ function SettingsTab({ siteId, site, siteDomain, contentSelector, setContentSele
     payload.settings.darkTheme = darkThemeVal === 'dark_dimmed' ? '' : darkThemeVal
     payload.settings.showAiBadge = showAiBadge
     payload.settings.showAiModel = showAiModel
+    payload.settings.showAiPrompt = showAiPrompt
     payload.settings.aiBadgePosition = aiBadgePosition
     payload.settings.showReactions = showReactions
     payload.settings.emailNotifyComments = emailNotifyComments
@@ -294,6 +296,11 @@ function SettingsTab({ siteId, site, siteDomain, contentSelector, setContentSele
         <span className="text-sm">{t('sites.showAiModel')}</span>
       </div>
       <p className="text-xs text-gray-400 -mt-2">{t('sites.showAiModelHint')}</p>
+      <div className="flex items-center gap-3">
+        <Toggle checked={showAiPrompt} onChange={() => setShowAiPrompt(!showAiPrompt)} />
+        <span className="text-sm">{t('sites.showAiPrompt')}</span>
+      </div>
+      <p className="text-xs text-gray-400 -mt-2">{t('sites.showAiPromptHint')}</p>
       <div className="flex items-center gap-3">
         <Toggle checked={showAiBadge} onChange={() => setShowAiBadge(!showAiBadge)} />
         <span className="text-sm">{t('sites.showAiBadge')}</span>

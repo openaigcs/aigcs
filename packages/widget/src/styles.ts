@@ -503,6 +503,55 @@ export const STYLES = `:host {
   color: var(--text-secondary);
 }
 
+.aigcs-prompt-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  cursor: pointer;
+  vertical-align: middle;
+  z-index: 100;
+}
+
+.aigcs-prompt-icon {
+  display: inline-block;
+  opacity: 0.75;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.aigcs-prompt-trigger:hover .aigcs-prompt-icon {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.aigcs-prompt-trigger::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2937;
+  color: #f3f4f6;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+  padding: 6px 10px;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 280px;
+  min-width: 140px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 10000;
+}
+
+.aigcs-prompt-trigger:hover::after {
+  opacity: 1;
+}
+
 /* ── Comment content ── */
 .aigcs-comment-content {
   font-size: 1rem;

@@ -251,6 +251,7 @@ router.put('/sites/:siteId', zValidator('json', z.object({
     commentPlugin: z.union([z.string(), z.array(z.string())]).optional(),
     showAiBadge: z.boolean().optional(),
     showAiModel: z.boolean().optional(),
+    showAiPrompt: z.boolean().optional(),
     aiBadgePosition: z.string().optional(),
     showReactions: z.boolean().optional(),
     emailNotifyComments: z.boolean().optional(),

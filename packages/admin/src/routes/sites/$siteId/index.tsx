@@ -275,11 +275,6 @@ function SettingsTab({ siteId, site, siteDomain, contentSelector, setContentSele
         </Select>
       </div>
       <div className="flex items-center gap-3">
-        <Toggle checked={showReactions} onChange={() => setShowReactions(!showReactions)} />
-        <span className="text-sm">{t('sites.showReactions')}</span>
-      </div>
-      <p className="text-xs text-gray-400 -mt-2">{t('sites.showReactionsHint')}</p>
-      <div className="flex items-center gap-3">
         <Toggle checked={emailNotifyComments} onChange={() => setEmailNotifyComments(!emailNotifyComments)} />
         <span className="text-sm">{t('sites.emailNotifyComments')}</span>
       </div>
@@ -289,6 +284,24 @@ function SettingsTab({ siteId, site, siteDomain, contentSelector, setContentSele
           <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.commentGeneratedTemplate')}</label>
           <Input multiline value={commentGeneratedTemplate} onChange={setCommentGeneratedTemplate} placeholder={t('sites.commentGeneratedDefaultTemplate')} className="min-h-[120px]" />
           <p className="text-xs text-gray-400 mt-0.5">{t('sites.commentGeneratedTemplateHint')}</p>
+        </div>
+      )}
+      <div className="flex items-center gap-3">
+        <Toggle checked={showAiBadge} onChange={() => setShowAiBadge(!showAiBadge)} />
+        <span className="text-sm">{t('sites.showAiBadge')}</span>
+      </div>
+      <p className="text-xs text-gray-400 -mt-2">{t('sites.showAiBadgeHint')}</p>
+      {showAiBadge && (
+        <div>
+          <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.aiBadgePosition')}</label>
+          <Select value={aiBadgePosition} onChange={setAiBadgePosition}>
+            <option value="tl">{t('sites.aiBadgeTl')}</option>
+             <option value="tr">{t('sites.aiBadgeTr')}</option>
+             <option value="bl">{t('sites.aiBadgeBl')}</option>
+             <option value="br">{t('sites.aiBadgeBr')}</option>
+             <option value="nick">{t('sites.aiBadgeNick')}</option>
+          </Select>
+          <p className="text-xs text-gray-400 mt-0.5">{t('sites.aiBadgePositionHint')}</p>
         </div>
       )}
       <div className="flex items-center gap-3">
@@ -302,23 +315,10 @@ function SettingsTab({ siteId, site, siteDomain, contentSelector, setContentSele
       </div>
       <p className="text-xs text-gray-400 -mt-2">{t('sites.showAiPromptHint')}</p>
       <div className="flex items-center gap-3">
-        <Toggle checked={showAiBadge} onChange={() => setShowAiBadge(!showAiBadge)} />
-        <span className="text-sm">{t('sites.showAiBadge')}</span>
+        <Toggle checked={showReactions} onChange={() => setShowReactions(!showReactions)} />
+        <span className="text-sm">{t('sites.showReactions')}</span>
       </div>
-      <p className="text-xs text-gray-400 -mt-2">{t('sites.showAiBadgeHint')}</p>
-      {showAiBadge && (
-        <div>
-          <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.aiBadgePosition')}</label>
-          <Select value={aiBadgePosition} onChange={setAiBadgePosition}>
-<option value="tl">{t('sites.aiBadgeTl')}</option>
-             <option value="tr">{t('sites.aiBadgeTr')}</option>
-             <option value="bl">{t('sites.aiBadgeBl')}</option>
-             <option value="br">{t('sites.aiBadgeBr')}</option>
-             <option value="nick">{t('sites.aiBadgeNick')}</option>
-          </Select>
-          <p className="text-xs text-gray-400 mt-0.5">{t('sites.aiBadgePositionHint')}</p>
-        </div>
-      )}
+      <p className="text-xs text-gray-400 -mt-2">{t('sites.showReactionsHint')}</p>
 
 
       <div className="flex items-center gap-3">

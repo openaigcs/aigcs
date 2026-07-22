@@ -43,6 +43,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
     deleteEmailRequired: '请填写邮箱',
     editTooLate: '超过编辑时限',
     nameTooLong: '昵称太长，请控制在 8 个汉字以内',
+    promptPrefix: '提示词：“',
   },
   en: {
     title: 'AI Comments',
@@ -88,6 +89,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
     deleteEmailRequired: 'Please enter your email',
     editTooLate: 'Edit window expired',
     nameTooLong: 'Name is too long. Please use at most 8 CJK characters (16 latin letters).',
+    promptPrefix: 'Prompt: "',
   },
   'zh-hant': {
     title: 'AI 評論',
@@ -132,5 +134,6 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
     deleteEmailRequired: '請填寫郵箱',
     editTooLate: '超過編輯時限',
     nameTooLong: '暱稱太長，請控制在 8 個漢字以內',
+    promptPrefix: '提示詞：“',
   },
 }

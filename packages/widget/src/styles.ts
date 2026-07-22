@@ -501,16 +501,19 @@ export const STYLES = `:host {
 .aigcs-comment-model {
   font-size: 0.875rem;
   color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .aigcs-prompt-trigger {
   position: relative;
   display: inline-flex;
   align-items: center;
-  margin-left: 4px;
+  justify-content: center;
   cursor: pointer;
-  vertical-align: middle;
   z-index: 100;
+  line-height: 1;
 }
 
 .aigcs-prompt-icon {

@@ -160,10 +160,11 @@ function SettingsTab({ siteId, site, siteDomain, contentSelector, setContentSele
   const [showReactions, setShowReactions] = useState(site.settings?.showReactions !== false)
   const [emailNotifyComments, setEmailNotifyComments] = useState(!!site.settings?.emailNotifyComments)
   const [commentGeneratedTemplate, setCommentGeneratedTemplate] = useState(site.settings?.commentGeneratedTemplate || '')
+  const [fallbackTitleIfEmpty, setFallbackTitleIfEmpty] = useState(site.settings?.fallbackTitleIfEmpty !== false)
   const savedSettingsRef = useRef('')
 
   function getSettingsSnapshot() {
-    return JSON.stringify({ localVal, autoGen, editName, editDomain, themeVal, lightThemeVal, darkThemeVal, showAiBadge, showAiModel, showAiPrompt, aiBadgePosition, showReactions, emailNotifyComments, commentGeneratedTemplate })
+    return JSON.stringify({ localVal, autoGen, editName, editDomain, themeVal, lightThemeVal, darkThemeVal, showAiBadge, showAiModel, showAiPrompt, aiBadgePosition, showReactions, emailNotifyComments, commentGeneratedTemplate, fallbackTitleIfEmpty })
   }
 
   useEffect(() => {
@@ -198,6 +199,7 @@ function SettingsTab({ siteId, site, siteDomain, contentSelector, setContentSele
     payload.settings.showReactions = showReactions
     payload.settings.emailNotifyComments = emailNotifyComments
     payload.settings.commentGeneratedTemplate = commentGeneratedTemplate
+    payload.settings.fallbackTitleIfEmpty = fallbackTitleIfEmpty
     savedSettingsRef.current = getSettingsSnapshot()
     updateSettingsMutation.mutate(payload)
   }
@@ -222,6 +224,23 @@ function SettingsTab({ siteId, site, siteDomain, contentSelector, setContentSele
           placeholder=".content, #content, .article"
         />
         <p className="text-xs text-gray-400 mt-0.5">{t('sites.contentSelectorHint')}</p>
+      </div>
+      <div className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/40">
+        <input
+          type="checkbox"
+          id="fallbackTitleIfEmpty"
+          checked={fallbackTitleIfEmpty}
+          onChange={(e) => setFallbackTitleIfEmpty(e.target.checked)}
+          className="mt-0.5 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+        />
+        <div>
+          <label htmlFor="fallbackTitleIfEmpty" className="block text-sm font-medium text-gray-900 dark:text-gray-200 cursor-pointer">
+            内容为空时以标题作为正文 (推荐开启)
+          </label>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            当 CSS 选择器未匹配到页面正文或提取出的文字内容为空时，自动使用文章标题代替正文发送给 AI 生成评论，避免因正文为空导致生成报错中断。
+          </p>
+        </div>
       </div>
       <div>
         <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.autoGenerate')}</label>

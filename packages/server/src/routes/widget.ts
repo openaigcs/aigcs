@@ -1005,9 +1005,17 @@ async function generateComments(siteId: string, path: string, siteDomain?: strin
       pageContent = hookCtx.pageContent || pageContent
       systemPrompt = hookCtx.systemPrompt || systemPrompt
 
+      const siteObj = db.select().from(sites).where(eq(sites.id, siteId)).get() as any
+      const fallbackTitleIfEmpty = siteObj?.settings?.fallbackTitleIfEmpty !== false
+
+      let effectivePageContent = pageContent
+      if ((!effectivePageContent || !effectivePageContent.trim() || effectivePageContent === '(page content could not be fetched)') && fallbackTitleIfEmpty) {
+        effectivePageContent = pageTitle || path
+      }
+
       const result = await providerImpl.generate({
         pageTitle,
-        pageContent,
+        pageContent: effectivePageContent,
         pageUrl: path,
         model: (provider as any).model,
         apiKey: decrypt((provider as any).apiKey),

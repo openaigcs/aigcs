@@ -53,15 +53,12 @@ async function main() {
     }
 
     // Ensure all default prompt templates exist
-    const hasPrompts = raw.prepare("SELECT COUNT(*) as count FROM prompt_templates WHERE is_system = 1").get() as { count: number } | undefined
-    if (!hasPrompts || hasPrompts.count === 0) {
-      const insertPrompt = raw.prepare("INSERT OR IGNORE INTO prompt_templates (id, name, content, lang, category, is_system) VALUES (?, ?, ?, ?, ?, 1)")
-      for (const p of DEFAULT_PROMPTS) {
-        const id = createHash('md5').update(p.name).digest('hex')
-        insertPrompt.run(id, p.name, p.content, p.lang, p.category)
-      }
-      console.log('[server] Default prompt templates seeded')
+    const insertPrompt = raw.prepare("INSERT OR IGNORE INTO prompt_templates (id, name, content, lang, category, is_system) VALUES (?, ?, ?, ?, ?, 1)")
+    for (const p of DEFAULT_PROMPTS) {
+      const id = createHash('md5').update(p.name).digest('hex')
+      insertPrompt.run(id, p.name, p.content, p.lang, p.category)
     }
+    console.log('[server] Default prompt templates checked & seeded')
 
     // Clean up duplicate reaction types that may have been created via admin UI or site creation
     const dupes = raw.prepare(`

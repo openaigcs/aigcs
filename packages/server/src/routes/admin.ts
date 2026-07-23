@@ -311,6 +311,17 @@ router.get('/sites/:siteId/providers', async (c) => {
   return c.json({ code: 0, data: masked })
 })
 
+router.get('/sites/:siteId/providers/:providerId/key', async (c) => {
+  const siteId = c.req.param('siteId')
+  const providerId = c.req.param('providerId')
+  requireSiteOwnership(c, siteId)
+  const db = getDb()
+  const p = db.select().from(providers).where(and(eq(providers.id, providerId), eq(providers.siteId, siteId))).get() as any
+  if (!p) throw new HTTPException(404, { message: 'Provider not found' })
+  const plainKey = decrypt(p.apiKey)
+  return c.json({ code: 0, data: { apiKey: plainKey } })
+})
+
 router.post('/sites/:siteId/providers', zValidator('json', z.object({
   name: z.string().min(1),
   displayName: z.string().min(1),
@@ -351,20 +362,24 @@ router.post('/sites/:siteId/providers', zValidator('json', z.object({
   const raw = getRawDb() as any
   const id = nanoid()
 
-  // If apiKey/model/apiEndpoint not provided, try to get from global provider-defaults
+  // If apiKey/model/apiEndpoint/providerType/avatarSvg not provided, try to get from global provider-defaults
   let apiKey = body.apiKey
   let model = body.model
   let apiEndpoint = body.apiEndpoint
-  
+  let providerType = body.providerType
+  let avatarSvg = (body as any).avatarSvg
+
   const row = raw.prepare("SELECT provider_defaults FROM system_config WHERE id = 'global'").get() as { provider_defaults: string | null } | undefined
   if (row?.provider_defaults) {
     try {
       const defaults = JSON.parse(row.provider_defaults)
       const def = defaults[body.name]
       if (def) {
-        if (!apiKey && def.apiKey) apiKey = def.apiKey
-        if (!model && def.model) model = def.model
-        if (!apiEndpoint && def.apiEndpoint) apiEndpoint = def.apiEndpoint
+        if ((!apiKey || apiKey.trim() === '') && def.apiKey) apiKey = def.apiKey
+        if ((!model || model.trim() === '') && def.model) model = def.model
+        if ((!apiEndpoint || apiEndpoint.trim() === '') && def.apiEndpoint) apiEndpoint = def.apiEndpoint
+        if ((!providerType || providerType.trim() === '') && def.type) providerType = def.type
+        if ((!avatarSvg || avatarSvg.trim() === '') && def.avatarSvg) avatarSvg = def.avatarSvg
       }
     } catch {}
   }
@@ -376,9 +391,11 @@ router.post('/sites/:siteId/providers', zValidator('json', z.object({
     ...body,
     id,
     siteId,
-    apiKey: encrypt(apiKey),
-    apiEndpoint,
-    model,
+    providerType: providerType || body.providerType || 'openai-compatible',
+    apiKey: encrypt(apiKey || ''),
+    apiEndpoint: apiEndpoint || '',
+    model: model || '',
+    avatarSvg: avatarSvg || '',
     sortWeight: calculatedSortWeight,
     enabled: Number(body.enabled),
     showOnFrontend: Number(body.showOnFrontend),
@@ -511,7 +528,7 @@ router.post('/sites/:siteId/providers/:providerId/test', async (c) => {
 
   try {
     const { getProvider } = await import('../providers/index.js')
-    const impl = getProvider(provider.name)
+    const impl = getProvider(provider.name, provider.providerType)
     if (!impl) throw new Error(`Provider implementation not found: ${provider.name}`)
 
     const result = await impl.generate({
@@ -1264,7 +1281,52 @@ router.post('/sites/:siteId/import-rss', zValidator('json', z.object({
   return c.json({ code: 0, data: { total: entries.length, imported, entries: results } })
 })
 
-// ── Cache Warm ──
+// ── Cache Warm & Generation Progress ──
+
+interface GenerationTaskProgress {
+  taskId: string
+  siteId: string
+  status: 'running' | 'completed' | 'failed' | 'cancelled'
+  total: number
+  current: number
+  success: number
+  failed: number
+  currentPath?: string
+  currentTitle?: string
+  errors: Array<{ path: string; message: string; timestamp: string }>
+  startedAt: string
+  updatedAt: string
+}
+
+const siteTaskProgressMap = new Map<string, GenerationTaskProgress>()
+
+router.get('/sites/:siteId/generation-progress', async (c) => {
+  const siteId = c.req.param('siteId')
+  requireSiteOwnership(c, siteId)
+  const task = siteTaskProgressMap.get(siteId) || null
+  return c.json({ code: 0, data: task })
+})
+
+router.post('/sites/:siteId/generation-progress/dismiss', async (c) => {
+  const siteId = c.req.param('siteId')
+  requireSiteOwnership(c, siteId)
+  siteTaskProgressMap.delete(siteId)
+  return c.json({ code: 0, message: 'Progress dismissed' })
+})
+
+router.post('/sites/:siteId/generation-progress/cancel', async (c) => {
+  const siteId = c.req.param('siteId')
+  const user = c.get('user')!
+  requireSiteOwnership(c, siteId)
+  const task = siteTaskProgressMap.get(siteId)
+  if (task && task.status === 'running') {
+    task.status = 'cancelled'
+    task.updatedAt = new Date().toISOString()
+    const { createNotification } = await import('../services/notification.js')
+    createNotification(user.id, 'warning', '评论生成已中断', `管理员手动中断了 AI 评论生成任务`, siteId)
+  }
+  return c.json({ code: 0, message: 'Generation cancelled' })
+})
 
 router.post('/sites/:siteId/cache/warm', zValidator('json', z.object({
   providerIds: z.array(z.string()).optional(),
@@ -1324,7 +1386,7 @@ router.post('/sites/:siteId/cache/warm', zValidator('json', z.object({
   const site = db.select().from(sites).where(eq(sites.id, siteId)).get() as any
   const user = c.get('user')!
 
-  warmCacheAsync(user.id, siteId, site.domain, entries as any[], {
+  runGenerationBatchTask(user.id, siteId, site.domain, entries as any[], {
     providerIds: opts.providerIds,
     concurrency: opts.concurrency || 1,
     interval: opts.interval ?? 10,
@@ -1337,45 +1399,107 @@ router.post('/sites/:siteId/cache/warm', zValidator('json', z.object({
   return c.json({ code: 0, data: { total: entries.length, message: `Warming ${entries.length} entries` } })
 })
 
-async function warmCacheAsync(userId: string, siteId: string, domain: string, entries: any[], options?: { providerIds?: string[]; concurrency?: number; interval?: number; selector?: string }) {
+async function runGenerationBatchTask(
+  userId: string,
+  siteId: string,
+  domain: string,
+  entries: Array<{ path: string; title?: string }>,
+  options?: { providerIds?: string[]; concurrency?: number; interval?: number; selector?: string }
+) {
   const { generateComments } = await import('../routes/widget.js')
+  const { createNotification } = await import('../services/notification.js')
 
   const concurrency = options?.concurrency || 1
   const interval = options?.interval ?? 10
-  let successCount = 0
-  let failCount = 0
+  const taskId = 'gen_' + nanoid(8)
+
+  const progress: GenerationTaskProgress = {
+    taskId,
+    siteId,
+    status: 'running',
+    total: entries.length,
+    current: 0,
+    success: 0,
+    failed: 0,
+    currentPath: entries[0]?.path || '',
+    currentTitle: entries[0]?.title || '',
+    errors: [],
+    startedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
+
+  siteTaskProgressMap.set(siteId, progress)
 
   for (let i = 0; i < entries.length; i += concurrency) {
+    if (progress.status === 'cancelled') {
+      console.log(`[generation-task] Task ${taskId} cancelled for site ${siteId}`)
+      break
+    }
+
     const batch = entries.slice(i, i + concurrency)
+    progress.currentPath = batch[0]?.path
+    progress.currentTitle = batch[0]?.title || batch[0]?.path
+    progress.updatedAt = new Date().toISOString()
+
     const results = await Promise.allSettled(
-      batch.map((entry) =>
-        generateComments(siteId, entry.path, domain, undefined, undefined, { providerIds: options?.providerIds, userSelector: options?.selector }),
-      ),
+      batch.map(async (entry) => {
+        try {
+          const res = await generateComments(siteId, entry.path, domain, undefined, undefined, {
+            providerIds: options?.providerIds,
+            userSelector: options?.selector,
+          })
+          if (res.errors && res.errors.length > 0) {
+            for (const errStr of res.errors) {
+              const errMsg = `页面 "${entry.path}": ${errStr}`
+              progress.errors.push({ path: entry.path, message: errStr, timestamp: new Date().toISOString() })
+              createNotification(userId, 'error', 'AI 评论生成报错', errMsg, siteId)
+            }
+          }
+          return res
+        } catch (err: any) {
+          const errMsg = `页面 "${entry.path}" 失败: ${err?.message || err}`
+          progress.errors.push({ path: entry.path, message: String(err?.message || err), timestamp: new Date().toISOString() })
+          createNotification(userId, 'error', 'AI 评论生成出错', errMsg, siteId)
+          throw err
+        }
+      })
     )
+
     for (const r of results) {
       if (r.status === 'rejected') {
-        failCount++
-        console.error(`[warm] Failed:`, r.reason)
+        progress.failed++
       } else {
-        successCount++
+        if (r.value && r.value.success > 0) {
+          progress.success += r.value.success
+        } else {
+          progress.failed++
+        }
       }
+      progress.current++
     }
-    if (i + concurrency < entries.length && interval > 0) {
+
+    progress.updatedAt = new Date().toISOString()
+
+    if (i + concurrency < entries.length && interval > 0 && progress.status === 'running') {
       await new Promise((resolve) => setTimeout(resolve, interval * 1000))
     }
   }
 
-  try {
-    fireWebhook(siteId, 'cache.warm_completed', { site: siteId, total: entries.length, success: successCount, fail: failCount })
-  } catch (err) {
-    console.error('[webhook] Failed to fire cache.warm_completed:', err)
-  }
-  
-  const { createNotification } = await import('../services/notification.js')
-  if (failCount > 0) {
-    createNotification(userId, 'warning', '评论生成部分完成', `成功生成 ${successCount} 条，失败 ${failCount} 条`, siteId)
-  } else {
-    createNotification(userId, 'success', '评论生成全部完成', `成功生成 ${successCount} 条评论`, siteId)
+  if (progress.status !== 'cancelled') {
+    progress.status = progress.failed === entries.length && entries.length > 0 ? 'failed' : 'completed'
+    progress.updatedAt = new Date().toISOString()
+
+    try {
+      fireWebhook(siteId, 'cache.warm_completed', { site: siteId, total: entries.length, success: progress.success, fail: progress.failed })
+    } catch (err) {
+      console.error('[webhook] Failed to fire cache.warm_completed:', err)
+    }
+
+    if (progress.failed > 0) {
+      createNotification(userId, 'warning', '评论生成部分完成', `总计 ${entries.length} 篇，成功 ${progress.success} 条，异常 ${progress.failed} 条`, siteId)
+    } else {
+      createNotification(userId, 'success', '评论生成全部完成', `成功完成 ${progress.success} 条 AI 评论生成`, siteId)
+    }
   }
 }
 
@@ -1433,27 +1557,23 @@ router.post('/sites/:siteId/cache/generate', zValidator('json', z.object({
   const site = db.select({ domain: sites.domain }).from(sites).where(eq(sites.id, siteId)).get() as any
   if (!site) throw new HTTPException(404, { message: 'Site not found' })
 
-  const { generateComments } = await import('../routes/widget.js')
-  let generated = 0
-
-  for (const path of paths) {
-    try {
-      const result = await generateComments(siteId, path, site.domain, undefined, undefined, { providerIds })
-      generated += result.success
-    } catch {
-      // skip failed
-    }
-  }
-
-  const { createNotification } = await import('../services/notification.js')
   const user = c.get('user')!
-  if (generated > 0) {
-    createNotification(user.id, 'success', '所选文章评论生成完成', `成功为 ${paths.length} 篇文章生成 ${generated} 条 AI 评论`, siteId)
-  } else {
-    createNotification(user.id, 'warning', '所选文章评论生成未产生新内容', `未能为选中的 ${paths.length} 篇文章生成评论`, siteId)
-  }
+  const pageEntries = db.select({ path: pageCache.path, title: pageCache.title })
+    .from(pageCache)
+    .where(and(eq(pageCache.siteId, siteId), inArray(pageCache.path, paths)))
+    .all()
 
-  return c.json({ code: 0, data: { generated } })
+  const entriesToRun = paths.map(p => {
+    const found = pageEntries.find((pe: any) => pe.path === p)
+    return { path: p, title: found?.title || p }
+  })
+
+  runGenerationBatchTask(user.id, siteId, site.domain, entriesToRun, { providerIds }).catch((err) => {
+    console.error('[cache/generate] Task error:', err)
+  })
+
+  insertAuditLog(db, { id: nanoid(), userId: user.id, action: 'cache.generate', details: { siteId, count: paths.length } })
+  return c.json({ code: 0, data: { count: paths.length, message: `Started generating for ${paths.length} entries` } })
 })
 
 // ── Get comments for a specific path ──

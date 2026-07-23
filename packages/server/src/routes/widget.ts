@@ -218,7 +218,19 @@ router.get('/:domain/comments', async (c) => {
     providerOrderMap.set(p.displayName, weight)
     providerOrderMap.set(p.name, weight)
     if (p.avatarSvg && p.avatarSvg !== '#empty-content') {
-      providerAvatarMap[p.displayName] = p.avatarSvg
+      const trimmed = p.avatarSvg.trim()
+      if (trimmed.startsWith('<svg')) {
+        providerAvatarMap[p.displayName] = `data:image/svg+xml,${encodeURIComponent(trimmed)}`
+      } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+        providerAvatarMap[p.displayName] = trimmed
+      } else {
+        const matched = getProviderAvatar(trimmed)
+        if (matched) {
+          providerAvatarMap[p.displayName] = matched
+        } else {
+          providerAvatarMap[p.displayName] = trimmed
+        }
+      }
     } else {
       const fallback = getProviderAvatar(p.name)
       if (fallback) providerAvatarMap[p.displayName] = fallback
@@ -964,7 +976,7 @@ async function generateComments(siteId: string, path: string, siteDomain?: strin
   const results = await Promise.allSettled(
     providerList.map(async (provider: any) => {
       const { getProvider } = await import('../providers/index.js')
-      const providerImpl = getProvider((provider as any).name)
+      const providerImpl = getProvider((provider as any).name, (provider as any).providerType)
       if (!providerImpl) return
 
       let systemPrompt: string | undefined

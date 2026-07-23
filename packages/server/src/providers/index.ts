@@ -23,7 +23,13 @@ const builtinProviders = new Map<string, AIProviderInterface>([
   ['kimi', createOpenAICompatibleProvider('kimi', 'Kimi')],
 ])
 
-export function getProvider(name: string): AIProviderInterface | undefined {
+export function getProvider(name: string, providerType?: string): AIProviderInterface | undefined {
+  if (providerType === 'openai-compatible') {
+    return createOpenAICompatibleProvider(name, name)
+  }
+  if (providerType === 'ollama') {
+    return createOllamaProvider()
+  }
   if (builtinProviders.has(name)) return builtinProviders.get(name)
   // Fallback: create a generic OpenAI-compatible provider for custom names
   if (name && name !== '') {

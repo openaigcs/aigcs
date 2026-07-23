@@ -142,19 +142,21 @@ function PromptsPage() {
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 whitespace-pre-wrap line-clamp-2">{p.content}</p>
                   </div>
-                  <div className="flex gap-2 ml-4">
-                    <SecondaryButton onClick={() => { setEditingId(p.id); setForm({ name: p.name, lang: p.lang, category: p.category, content: p.content }) }}>
-                      {t('prompts.edit')}
-                    </SecondaryButton>
-                    <DangerButton onClick={() => setConfirmDeleteId(p.id)}>{t('common.delete')}</DangerButton>
-                    {confirmDeleteId === p.id && (
-                      <div className="ml-2 flex items-center gap-2 text-sm text-red-600">
-                        <span>{t('common.delete')}?</span>
+                  <div className="flex gap-2 ml-4 items-center whitespace-nowrap">
+                    {confirmDeleteId === p.id ? (
+                      <div className="flex items-center gap-2">
                         <DangerButton onClick={() => { deleteMutation.mutate(p.id); setConfirmDeleteId(null) }} disabled={deleteMutation.isPending}>
-                          {deleteMutation.isPending ? t('common.loading') : t('common.delete')}
+                          {deleteMutation.isPending ? t('common.loading') : t('common.confirm')}
                         </DangerButton>
                         <SecondaryButton onClick={() => setConfirmDeleteId(null)}>{t('common.cancel')}</SecondaryButton>
                       </div>
+                    ) : (
+                      <>
+                        <SecondaryButton onClick={() => { setEditingId(p.id); setForm({ name: p.name, lang: p.lang, category: p.category, content: p.content }) }}>
+                          {t('prompts.edit')}
+                        </SecondaryButton>
+                        <DangerButton onClick={() => setConfirmDeleteId(p.id)}>{t('common.delete')}</DangerButton>
+                      </>
                     )}
                   </div>
                 </div>

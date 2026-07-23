@@ -53,14 +53,30 @@ interface ProviderIconProps {
 export function ProviderIcon({ name, size = 20, avatarSvg }: ProviderIconProps) {
   const key = name.toLowerCase()
 
-  if (avatarSvg) {
-    return (
-      <img
-        src={avatarSvg}
-        alt={name}
-        style={{ width: size, height: size, borderRadius: '50%' }}
-      />
-    )
+  if (avatarSvg && avatarSvg !== '#empty-content') {
+    const trimmed = avatarSvg.trim()
+    if (trimmed.startsWith('<svg')) {
+      return (
+        <span
+          style={{ width: size, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+          dangerouslySetInnerHTML={{ __html: trimmed }}
+        />
+      )
+    }
+    const matchedIcon = AVATAR_MAP[trimmed.toLowerCase()]
+    if (matchedIcon) {
+      const CustomMatchedIcon = matchedIcon
+      return <CustomMatchedIcon size={size} />
+    }
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+      return (
+        <img
+          src={trimmed}
+          alt={name}
+          style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover' }}
+        />
+      )
+    }
   }
 
   const Icon = AVATAR_MAP[key]
@@ -70,7 +86,7 @@ export function ProviderIcon({ name, size = 20, avatarSvg }: ProviderIconProps) 
   const label = name[0]?.toUpperCase() || '?'
   return (
     <span
-      className="inline-flex items-center justify-center rounded-full text-white text-xs font-bold"
+      className="inline-flex items-center justify-center rounded-full text-white text-xs font-bold shrink-0"
       style={{ width: size, height: size, backgroundColor: color, fontSize: size * 0.45 }}
     >
       {label}

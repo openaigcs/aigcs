@@ -3,7 +3,7 @@ import { Route as rootRoute } from './__root'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PrimaryButton, SecondaryButton, DangerButton, Input, Card, Badge } from '../components/ui'
+import { PrimaryButton, SecondaryButton, DangerButton, Input, Select, Card, Badge } from '../components/ui'
 import { ProviderIcon } from '../components/provider-icon'
 
 interface BuiltinProvider {
@@ -44,6 +44,8 @@ export const Route = createRoute({
     const [editDisplay, setEditDisplay] = useState('')
     const [editEndpoint, setEditEndpoint] = useState('')
     const [editModel, setEditModel] = useState('')
+    const [editType, setEditType] = useState('')
+    const [showPasswordKey, setShowPasswordKey] = useState(false)
     const [showCustom, setShowCustom] = useState(false)
     const [customName, setCustomName] = useState('')
     const [customDisplay, setCustomDisplay] = useState('')
@@ -138,7 +140,9 @@ export const Route = createRoute({
       setEditDisplay(cfg.displayName || builtin?.displayName || name)
       setEditEndpoint(cfg.apiEndpoint || builtin?.endpoint || '')
       setEditModel(cfg.model || builtin?.defaultModel || '')
+      setEditType(cfg.type || builtin?.type || 'native')
       setEditAvatarSvg(cfg.avatarSvg || '')
+      setShowPasswordKey(false)
     }
 
     const isLoading = loadingBuiltin || loadingDefaults
@@ -229,11 +233,25 @@ export const Route = createRoute({
                               {saveMutation.isSuccess && <p className="text-green-500 mb-3">{t('providersPage.settingsSaved')}</p>}
                               <form onSubmit={(e) => {
                                 e.preventDefault()
-                                saveMutation.mutate({ name: expanded, displayName: editDisplay, apiKey: editKey || undefined, apiEndpoint: editEndpoint || undefined, model: editModel || undefined, avatarSvg: editAvatarSvg || undefined })
+                                saveMutation.mutate({ name: expanded, displayName: editDisplay, type: editType || undefined, apiKey: editKey || undefined, apiEndpoint: editEndpoint || undefined, model: editModel || undefined, avatarSvg: editAvatarSvg || undefined })
                               }} className="space-y-4">
                                 <div>
                                   <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('providersPage.apiKey')}</label>
-                                  <Input type="password" value={editKey} onChange={setEditKey} placeholder={t('common.enterApiKey')} className="font-mono" />
+                                  <div className="relative flex items-center">
+                                    <Input type={showPasswordKey ? 'text' : 'password'} value={editKey} onChange={setEditKey} placeholder={t('common.enterApiKey')} className="font-mono pr-10" />
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowPasswordKey(!showPasswordKey)}
+                                      className="absolute right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer p-1"
+                                      title={showPasswordKey ? '隐藏 Key' : '显示 Key'}
+                                    >
+                                      {showPasswordKey ? (
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+                                      ) : (
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                      )}
+                                    </button>
+                                  </div>
                                   {API_KEY_URLS[expanded || ''] && (
                                     <a href={API_KEY_URLS[expanded!]} target="_blank" rel="noopener noreferrer" className="cursor-pointer text-xs text-blue-500 hover:underline mt-1 inline-block">{t('providersPage.getApiKey')}</a>
                                   )}
@@ -242,6 +260,17 @@ export const Route = createRoute({
                                   <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('providersPage.displayName')}</label>
                                   <Input value={editDisplay} onChange={setEditDisplay} />
                                 </div>
+                                {(['gemini', 'grok', 'claude', 'ollama'].includes(p.name) || p.isCustom) && (
+                                  <div>
+                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.providerType')}</label>
+                                    <Select value={editType || (p.name === 'ollama' ? 'ollama' : 'native')} onChange={setEditType}>
+                                      <option value={p.name === 'ollama' ? 'ollama' : 'native'}>
+                                        {p.name === 'ollama' ? 'Ollama 本地协议' : 'Native 官方原生协议'}
+                                      </option>
+                                      <option value="openai-compatible">OpenAI 兼容协议 (openai-compatible)</option>
+                                    </Select>
+                                  </div>
+                                )}
                                 <div>
                                   <label className="block text-sm font-medium mb-1 dark:text-gray-300">
                                     {t('providersPage.apiEndpoint')}

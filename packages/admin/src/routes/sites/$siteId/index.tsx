@@ -681,6 +681,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
   const queryClient = useQueryClient()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<any>({})
+  const [showApiKeyMap, setShowApiKeyMap] = useState<Record<string, boolean>>({})
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [showReorderModal, setShowReorderModal] = useState(false)
@@ -789,9 +790,33 @@ function ProvidersTab({ siteId }: { siteId: string }) {
     staleTime: 60000,
   })
 
-  const configuredProviders = (builtinProviders || []).filter(
-    (p: any) => providerDefaults?.[p.name]?.apiKey
-  )
+  const availableProviders: Array<{ name: string; displayName: string; type: string; endpoint: string; defaultModel: string; isConfigured: boolean }> = []
+  if (builtinProviders) {
+    for (const p of builtinProviders) {
+      const def = providerDefaults?.[p.name]
+      availableProviders.push({
+        name: p.name,
+        displayName: def?.displayName || p.displayName,
+        type: def?.type || p.type,
+        endpoint: def?.apiEndpoint || p.endpoint,
+        defaultModel: def?.model || p.defaultModel,
+        isConfigured: !!def?.apiKey,
+      })
+    }
+  }
+  if (providerDefaults) {
+    for (const [name, cfg] of Object.entries(providerDefaults)) {
+      if (builtinProviders?.some((p: any) => p.name === name)) continue
+      availableProviders.push({
+        name,
+        displayName: cfg.displayName || name,
+        type: cfg.type || 'custom',
+        endpoint: cfg.apiEndpoint || '',
+        defaultModel: cfg.model || '',
+        isConfigured: !!cfg.apiKey,
+      })
+    }
+  }
 
   const createMutation = useMutation({
     mutationFn: (data: any) =>
@@ -825,31 +850,69 @@ function ProvidersTab({ siteId }: { siteId: string }) {
       {showAddForm && (
         <form onSubmit={(e) => { e.preventDefault(); createMutation.mutate(addForm) }} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4 space-y-3">
           <div className="mb-3">
-            <label className="block text-sm font-medium mb-2 dark:text-gray-300">{t('sites.providerType')}</label>
-            <p className="text-xs text-gray-500 mb-2">{t('sites.providerGlobalHint')}</p>
-            <div className="flex flex-wrap gap-2">
-              {configuredProviders.map((p: any) => (
-                <button key={p.name} type="button" onClick={() => setAddForm({
-                  ...addForm, name: p.name, displayName: p.displayName,
-                  providerType: p.type, apiEndpoint: p.endpoint, model: providerDefaults?.[p.name]?.model || p.defaultModel,
-                })} className={`cursor-pointer px-3 py-1.5 rounded-lg text-sm border ${addForm.name === p.name ? 'bg-blue-100 border-blue-500 text-blue-700 dark:bg-blue-900 dark:text-blue-300' : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400'}`}>{p.displayName}</button>
-              ))}
+            <label className="block text-sm font-medium mb-1 dark:text-gray-300">选择要添加的 AI 提供商</label>
+            <p className="text-xs text-gray-500 mb-2 font-normal">点击选择提供商（若已在全局预设中配置 API Key，将自动拉取继承）</p>
+            <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-1">
+              {availableProviders.map((p) => {
+                const isSelected = addForm.name === p.name
+                return (
+                  <button
+                    key={p.name}
+                    type="button"
+                    onClick={() => {
+                      const def = providerDefaults?.[p.name]
+                      setAddForm({
+                        ...addForm,
+                        name: p.name,
+                        displayName: p.displayName,
+                        providerType: p.type,
+                        apiEndpoint: p.endpoint || '',
+                        model: p.defaultModel || '',
+                        apiKey: def?.apiKey || '',
+                        avatarSvg: def?.avatarSvg || '',
+                      })
+                    }}
+                    className={`cursor-pointer px-3 py-1.5 rounded-lg text-sm border flex items-center gap-1.5 transition-colors ${
+                      isSelected
+                        ? 'bg-blue-100 border-blue-500 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-400'
+                    }`}
+                  >
+                    <ProviderIcon name={p.name} size={16} avatarSvg={providerDefaults?.[p.name]?.avatarSvg} />
+                    <span>{p.displayName}</span>
+                    {p.isConfigured && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" title="已全局配置 Key" />
+                    )}
+                  </button>
+                )
+              })}
             </div>
           </div>
-          <div className="flex gap-4 whitespace-nowrap">
+
+          <div className="flex gap-4 whitespace-nowrap pt-1">
             <label className="flex items-center gap-2 text-sm dark:text-gray-300"><input type="checkbox" checked={addForm.enabled} onChange={(e) => setAddForm({ ...addForm, enabled: e.target.checked })} /> {t('sites.enabled')}</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={addForm.showOnFrontend} onChange={(e) => setAddForm({ ...addForm, showOnFrontend: e.target.checked })} /> {t('sites.showOnFrontend')}</label>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.displayName')}</label>
+              <Input value={addForm.displayName || ''} onChange={(v) => setAddForm({ ...addForm, displayName: v })} placeholder="e.g. OpenAI" />
+            </div>
             <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.model')}</label>
               <Input value={addForm.model || ''} onChange={(v) => setAddForm({ ...addForm, model: v })} placeholder="e.g. gpt-4o-mini" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.modelDisplayName')}</label>
-              <Input value={addForm.modelDisplayName || ''} onChange={(v) => setAddForm({ ...addForm, modelDisplayName: v })} placeholder={t('sites.modelDisplayNamePlaceholder')} />
+              <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.apiEndpoint')}</label>
+              <Input value={addForm.apiEndpoint || ''} onChange={(v) => setAddForm({ ...addForm, apiEndpoint: v })} placeholder="留空将自动复用全局预设配置" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.apiKey')}</label>
+              <Input type="password" value={addForm.apiKey || ''} onChange={(v) => setAddForm({ ...addForm, apiKey: v })} placeholder="留空将自动复用全局预设配置" />
             </div>
           </div>
+
           <div>
             <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.promptTemplate')}</label>
             <Select value={addForm.promptTemplateId || ''} onChange={(v) => setAddForm({ ...addForm, promptTemplateId: v })}>
@@ -857,6 +920,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
               {prompts?.map((pt: any) => <option key={pt.id} value={pt.id}>{pt.name}</option>)}
             </Select>
           </div>
+
           {createMutation.isError && (
             <p className="text-sm text-red-500 mb-1">{(createMutation.error as any)?.message || '添加失败'}</p>
           )}
@@ -900,12 +964,57 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.apiKey')}</label>
-                      <Input type="password" value={editForm.apiKey || ''} onChange={(v) => setEditForm({ ...editForm, apiKey: v })} placeholder={t('sites.apiKeyPlaceholder')} />
+                      <div className="relative flex items-center">
+                        <Input
+                          type={showApiKeyMap[p.id] ? 'text' : 'password'}
+                          value={editForm.apiKey || ''}
+                          onChange={(v) => setEditForm({ ...editForm, apiKey: v })}
+                          placeholder={t('sites.apiKeyPlaceholder')}
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const willShow = !showApiKeyMap[p.id]
+                            setShowApiKeyMap(prev => ({ ...prev, [p.id]: willShow }))
+                            if (willShow && editForm.apiKey && editForm.apiKey.startsWith('****')) {
+                              try {
+                                const res = await api<{ apiKey: string }>(`/api/admin/sites/${siteId}/providers/${p.id}/key`)
+                                if (res?.apiKey) setEditForm((prev: any) => ({ ...prev, apiKey: res.apiKey }))
+                              } catch (e) {
+                                console.error('Failed to fetch decrypted key', e)
+                              }
+                            }
+                          }}
+                          className="absolute right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer p-1"
+                          title={showApiKeyMap[p.id] ? '隐藏 Key' : '显示 Key'}
+                        >
+                          {showApiKeyMap[p.id] ? (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+                          ) : (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.sortWeight')}</label>
                       <Input type="number" value={editForm.sortWeight ?? 0} onChange={(v) => setEditForm({ ...editForm, sortWeight: Number(v) })} />
                     </div>
+                    {(['gemini', 'grok', 'claude', 'ollama'].includes(p.name) || !['openai', 'deepseek', 'xiaomi', 'doubao', 'hunyuan', 'quark', 'qwen', 'glm', 'minimax', 'kimi'].includes(p.name)) && (
+                      <div>
+                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.providerType')}</label>
+                        <Select
+                          value={editForm.providerType || (p.name === 'ollama' ? 'ollama' : 'native')}
+                          onChange={(v) => setEditForm({ ...editForm, providerType: v })}
+                        >
+                          <option value={p.name === 'ollama' ? 'ollama' : 'native'}>
+                            {p.name === 'ollama' ? 'Ollama 本地协议' : 'Native 官方原生协议'}
+                          </option>
+                          <option value="openai-compatible">OpenAI 兼容协议 (openai-compatible)</option>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.avatarSvg')}</label>
@@ -933,80 +1042,100 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                   </div>
                 </form>
               ) : (
-                <div className="flex items-center justify-between">
-                  <div>
-<div className="flex items-center gap-3 shrink-0 whitespace-nowrap">
-                      <ProviderIcon name={p.name} size={24} avatarSvg={p.avatarSvg} />
-                      <span className="font-medium dark:text-white">{p.displayName || p.name}</span>
-                      <span className="text-xs text-gray-400">{p.name}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded ${p.enabled ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400'}`}>
-                        {p.enabled ? t('sites.enabled') : t('sites.disabled')}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      {p.providerType} &middot; {p.model || t('sites.noModel')}
-                    </p>
-                    {deleteCommentsResult && deleteCommentsResult.id === p.id && (
-                      <p className="text-green-600 text-sm mt-1">
-                        {t('sites.deleteCommentsSuccess', { count: deleteCommentsResult.count })}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-3 shrink-0 whitespace-nowrap">
+                        <ProviderIcon name={p.name} size={24} avatarSvg={p.avatarSvg} />
+                        <span className="font-medium dark:text-white">{p.displayName || p.name}</span>
+                        <span className="text-xs text-gray-400">{p.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${p.enabled ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400'}`}>
+                          {p.enabled ? t('sites.enabled') : t('sites.disabled')}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {p.providerType} &middot; {p.model || t('sites.noModel')}
                       </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
-                                        {p.enabled ? (
-                      <button type="button" onClick={() => toggleMutation.mutate({ id: p.id, enabled: false })} className="cursor-pointer whitespace-nowrap bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 px-4 py-2 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium">
-                        {t('sites.enabled')}
-                      </button>
-                    ) : (
-                      <SecondaryButton onClick={() => toggleMutation.mutate({ id: p.id, enabled: true })}>
-                        {t('sites.notEnabled')}
-                      </SecondaryButton>
-                    )}
-                    <PrimaryButton onClick={() => {
-                      setTestResult(null)
-                      setTestingId(p.id)
-                      testMutation.mutate(p.id, {
-                        onSuccess: () => { setTestResult({ id: p.id, success: true }); setTimeout(() => setTestResult(r => r?.id === p.id ? null : r), 3000) },
-                        onError: (err: Error) => { setTestResult({ id: p.id, success: false, message: err.message }); setTimeout(() => setTestResult(r => r?.id === p.id ? null : r), 5000) },
-                        onSettled: () => setTestingId(null),
-                      })
-                    }} disabled={testingId !== null && testingId !== p.id}>
-                      {testingId === p.id ? t('sites.testingProvider') : t('sites.test')}
-                    </PrimaryButton>
-                    {testResult && testResult.id === p.id && testResult.success && <p className="text-green-600 text-sm mt-2">{t('sites.testSuccess')}</p>}
-                    {testResult && testResult.id === p.id && !testResult.success && <p className="text-red-500 text-sm mt-2">{t('common.error')}: {testResult.message}</p>}
-                    {confirmDeleteCommentsId === p.id ? (
-                      <div className="flex items-center gap-1">
-                        <DangerButton onClick={() => { deleteCommentsMutation.mutate(p.id); setConfirmDeleteCommentsId(null) }} disabled={deleteCommentsMutation.isPending}>
-                          {t('common.confirm')}
-                        </DangerButton>
-                        <SecondaryButton onClick={() => setConfirmDeleteCommentsId(null)}>
-                          {t('common.cancel')}
+                      {deleteCommentsResult && deleteCommentsResult.id === p.id && (
+                        <p className="text-green-600 text-sm mt-1">
+                          {t('sites.deleteCommentsSuccess', { count: deleteCommentsResult.count })}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
+                      {p.enabled ? (
+                        <button type="button" onClick={() => toggleMutation.mutate({ id: p.id, enabled: false })} className="cursor-pointer whitespace-nowrap bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 px-4 py-2 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium">
+                          {t('sites.enabled')}
+                        </button>
+                      ) : (
+                        <SecondaryButton onClick={() => toggleMutation.mutate({ id: p.id, enabled: true })}>
+                          {t('sites.notEnabled')}
                         </SecondaryButton>
-                      </div>
-                    ) : (
-                      <SecondaryButton onClick={() => setConfirmDeleteCommentsId(p.id)} title={t('sites.deleteCommentsConfirm')}>
-                        {t('sites.deleteComments')}
-                      </SecondaryButton>
-                    )}
-                    <SecondaryButton onClick={() => { setEditingId(p.id); setEditForm({ ...p, apiKey: '', apiEndpoint: '' }) }}>
-                      {t('common.edit')}
-                    </SecondaryButton>
-                    {confirmDeleteId === p.id ? (
-                      <div className="flex items-center gap-1">
-                        <DangerButton onClick={() => { deleteMutation.mutate(p.id); setConfirmDeleteId(null) }} disabled={deleteMutation.isPending}>
-                          {t('common.confirm')}
-                        </DangerButton>
-                        <SecondaryButton onClick={() => setConfirmDeleteId(null)}>
-                          {t('common.cancel')}
+                      )}
+                      <PrimaryButton onClick={() => {
+                        setTestResult(null)
+                        setTestingId(p.id)
+                        testMutation.mutate(p.id, {
+                          onSuccess: () => { setTestResult({ id: p.id, success: true, message: '响应测试正常！已成功连通此 AI 提供商。' }); setTimeout(() => setTestResult(r => r?.id === p.id ? null : r), 4000) },
+                          onError: (err: Error) => { setTestResult({ id: p.id, success: false, message: err.message }); setTimeout(() => setTestResult(r => r?.id === p.id ? null : r), 8000) },
+                          onSettled: () => setTestingId(null),
+                        })
+                      }} disabled={testingId !== null && testingId !== p.id}>
+                        {testingId === p.id ? t('sites.testingProvider') : t('sites.test')}
+                      </PrimaryButton>
+                      {confirmDeleteCommentsId === p.id ? (
+                        <div className="flex items-center gap-1">
+                          <DangerButton onClick={() => { deleteCommentsMutation.mutate(p.id); setConfirmDeleteCommentsId(null) }} disabled={deleteCommentsMutation.isPending}>
+                            {t('common.confirm')}
+                          </DangerButton>
+                          <SecondaryButton onClick={() => setConfirmDeleteCommentsId(null)}>
+                            {t('common.cancel')}
+                          </SecondaryButton>
+                        </div>
+                      ) : (
+                        <SecondaryButton onClick={() => setConfirmDeleteCommentsId(p.id)} title={t('sites.deleteCommentsConfirm')}>
+                          {t('sites.deleteComments')}
                         </SecondaryButton>
-                      </div>
-                    ) : (
-                      <DangerButton onClick={() => setConfirmDeleteId(p.id)}>
-                        {t('common.delete')}
-                      </DangerButton>
-                    )}
+                      )}
+                      <SecondaryButton onClick={() => { setEditingId(p.id); setEditForm({ ...p, apiKey: p.apiKey || '', apiEndpoint: p.apiEndpoint || '' }) }}>
+                        {t('common.edit')}
+                      </SecondaryButton>
+                      {confirmDeleteId === p.id ? (
+                        <div className="flex items-center gap-1">
+                          <DangerButton onClick={() => { deleteMutation.mutate(p.id); setConfirmDeleteId(null) }} disabled={deleteMutation.isPending}>
+                            {t('common.confirm')}
+                          </DangerButton>
+                          <SecondaryButton onClick={() => setConfirmDeleteId(null)}>
+                            {t('common.cancel')}
+                          </SecondaryButton>
+                        </div>
+                      ) : (
+                        <DangerButton onClick={() => setConfirmDeleteId(p.id)}>
+                          {t('common.delete')}
+                        </DangerButton>
+                      )}
+                    </div>
                   </div>
+
+                  {testResult && testResult.id === p.id && (
+                    <div className={`mt-3 p-3 rounded-lg border text-xs font-mono whitespace-pre-wrap break-all ${
+                      testResult.success
+                        ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800'
+                        : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800'
+                    }`}>
+                      <div className="flex justify-between items-center font-sans font-medium mb-1">
+                        <span>{testResult.success ? `✅ ${t('sites.testSuccess')}` : `❌ ${t('common.error')}`}</span>
+                        <button
+                          type="button"
+                          onClick={() => setTestResult(null)}
+                          className="text-xs opacity-60 hover:opacity-100 cursor-pointer p-0.5"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      {testResult.message && <p className="mt-1 leading-relaxed">{testResult.message}</p>}
+                    </div>
+                  )}
                 </div>
               )}
               
@@ -1589,6 +1718,124 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
   )
 }
 
+function GenerationProgressCard({ siteId }: { siteId: string }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [showErrors, setShowErrors] = useState(false)
+
+  const { data: progress } = useQuery({
+    queryKey: ['site-generation-progress', siteId],
+    queryFn: () => api<any>(`/api/admin/sites/${siteId}/generation-progress`),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      return status === 'running' ? 2000 : false
+    },
+  })
+
+  const dismissMutation = useMutation({
+    mutationFn: () => api(`/api/admin/sites/${siteId}/generation-progress/dismiss`, { method: 'POST' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-generation-progress', siteId] }),
+  })
+
+  const cancelMutation = useMutation({
+    mutationFn: () => api(`/api/admin/sites/${siteId}/generation-progress/cancel`, { method: 'POST' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-generation-progress', siteId] }),
+  })
+
+  if (!progress) return null
+
+  const percent = progress.total > 0 ? Math.min(100, Math.round((progress.current / progress.total) * 100)) : 0
+  const isRunning = progress.status === 'running'
+  const isCancelled = progress.status === 'cancelled'
+
+  return (
+    <div className="mb-4 p-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/40 space-y-3 shadow-sm transition-all">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          {isRunning && (
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-ping inline-block" />
+          )}
+          <h4 className="font-medium text-blue-900 dark:text-blue-200 text-sm">
+            {isRunning
+              ? `⚡ AI 评论生成中 (${progress.current} / ${progress.total})`
+              : isCancelled
+              ? `⏹️ 生成已被管理员中断`
+              : `✅ 评论生成已完成`}
+          </h4>
+          <span className="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-mono">
+            {percent}%
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {isRunning ? (
+            <button
+              type="button"
+              onClick={() => cancelMutation.mutate()}
+              disabled={cancelMutation.isPending}
+              className="text-xs px-2.5 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-300 hover:bg-red-200 cursor-pointer font-medium"
+            >
+              {cancelMutation.isPending ? t('common.loading') : '中断任务'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => dismissMutation.mutate()}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer text-sm p-1"
+              title="关闭卡片"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="w-full bg-blue-200/60 dark:bg-blue-900/60 rounded-full h-2 overflow-hidden">
+        <div
+          className={`h-2 transition-all duration-300 ${
+            isCancelled ? 'bg-amber-500' : progress.failed > 0 && !isRunning ? 'bg-amber-500' : 'bg-blue-600'
+          }`}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+
+      <div className="flex items-center justify-between text-xs text-blue-800 dark:text-blue-300">
+        <div className="flex gap-4">
+          <span>成功: <strong className="text-green-600 dark:text-green-400">{progress.success}</strong></span>
+          <span>失败/异常: <strong className="text-red-600 dark:text-red-400">{progress.failed}</strong></span>
+          <span>剩余: <strong>{Math.max(0, progress.total - progress.current)}</strong></span>
+        </div>
+        {progress.currentTitle && (
+          <div className="truncate max-w-xs text-gray-500 dark:text-gray-400" title={progress.currentPath}>
+            当前: {progress.currentTitle}
+          </div>
+        )}
+      </div>
+
+      {progress.errors && progress.errors.length > 0 && (
+        <div className="pt-2 border-t border-blue-200/50 dark:border-blue-800/50">
+          <button
+            type="button"
+            onClick={() => setShowErrors(!showErrors)}
+            className="text-xs text-red-600 dark:text-red-400 hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            {showErrors ? '▲ 隐藏异常日志' : `▼ 查看生成异常日志 (${progress.errors.length} 条)`}
+          </button>
+          {showErrors && (
+            <div className="mt-2 max-h-36 overflow-y-auto space-y-1 bg-red-50 dark:bg-red-950/30 p-2.5 rounded border border-red-200 dark:border-red-900 text-xs font-mono">
+              {progress.errors.map((err: any, idx: number) => (
+                <div key={idx} className="text-red-700 dark:text-red-300 truncate">
+                  • [{err.path}] {err.message}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteId: string; siteDomain: string; pendingPath: string; setPendingPath: (p: string) => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -1971,6 +2218,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
   return (
     <div>
       <Card title={t('sites.content')}>
+        <GenerationProgressCard siteId={siteId} />
         {totalCache === 0 && (
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{t('content.emptyHint')}</p>
         )}

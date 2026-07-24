@@ -1745,10 +1745,7 @@ function GenerationProgressCard({ siteId }: { siteId: string }) {
   const { data: progress } = useQuery({
     queryKey: ['site-generation-progress', siteId],
     queryFn: () => api<any>(`/api/admin/sites/${siteId}/generation-progress`),
-    refetchInterval: (query) => {
-      const status = query.state.data?.status
-      return status === 'running' ? 2000 : false
-    },
+    refetchInterval: 1000,
   })
 
   const dismissMutation = useMutation({
@@ -2041,6 +2038,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site-cache', siteId] })
+      queryClient.invalidateQueries({ queryKey: ['site-generation-progress', siteId] })
     },
   })
 // ── Fetch Content ──
@@ -2083,6 +2081,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['site-cache', siteId] })
+      queryClient.invalidateQueries({ queryKey: ['site-generation-progress', siteId] })
       setGeneratePanel(null)
       setResultMsg(t('content.generateSuccess', { count: data.generated }))
       setTimeout(() => setResultMsg(null), 3000)
@@ -2636,51 +2635,31 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                         <td colSpan={6} className="p-3">
                           {commentsLoading ? (
                             <span className="text-sm text-gray-400">{t('common.loading')}</span>
-                          ) : !pathComments || pathComments.length === 0 ? (
-                            <span className="text-sm text-gray-400">{t('sites.noComments')}</span>
-                          ) : (
-                            <div className="space-y-2">
-                              {pathComments.map((c: any, i: number) => (
-                                <div key={c.id} className={`flex items-start gap-2 ${i < pathComments.length - 1 ? 'border-b border-gray-200 dark:border-gray-700 pb-2' : ''}`}>
-                                  {c.providerName === 'visitor' ? (
-                                    <img src={`https://www.gravatar.com/avatar/${c.avatarHash}?d=mp&s=24`} alt="" className="w-7 h-7 rounded-full shrink-0 mt-0.5" loading="lazy" onError={(e: any) => { e.target.style.display = 'none' }} />
-                                  ) : (
-                                    <ProviderIcon name={c.providerName} size={28} />
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-0.5">
-                                      <span className="text-xs font-medium dark:text-gray-200">{c.authorName}</span>
-                                      {c.providerName === 'visitor' ? (
-                                        <span className="text-xs text-green-500">{t('sites.visitorComment')}</span>
-                                      ) : (
+                          ) : (() => {
+                            const aiOnlyComments = (pathComments || []).filter((c: any) => c.providerName !== 'visitor')
+                            if (aiOnlyComments.length === 0) {
+                              return <span className="text-sm text-gray-400">{t('sites.noComments')}</span>
+                            }
+                            return (
+                              <div className="space-y-2">
+                                {aiOnlyComments.map((c: any, i: number) => (
+                                  <div key={c.id} className={`flex items-start gap-2 ${i < aiOnlyComments.length - 1 ? 'border-b border-gray-200 dark:border-gray-700 pb-2' : ''}`}>
+                                    <span className="w-7 h-7 rounded-full shrink-0 overflow-hidden"><ProviderIcon name={c.providerName} size={28} /></span>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-0.5">
+                                        <span className="text-xs font-medium dark:text-gray-200">{c.authorName}</span>
                                         <span className="text-xs text-gray-400">{c.model}</span>
-                                      )}
-                                      {c.authorAvatar === '#empty-content' && (
-                                        <span className="text-xs text-yellow-600 dark:text-yellow-400 italic">{t('sites.emptyContentWarning')}</span>
-                                      )}
-                                    </div>
-                                    {(c.authorEmail || c.authorUrl) && (
-                                      <div className="text-xs text-gray-400 dark:text-gray-500 mb-0.5">
-                                        {c.authorEmail && <span>{c.authorEmail}</span>}
-                                        {c.authorEmail && c.authorUrl && <span> · </span>}
-                                        {c.authorUrl && <a href={c.authorUrl} target="_blank" rel="noopener" className="text-blue-500 hover:underline">{c.authorUrl}</a>}
+                                        {c.authorAvatar === '#empty-content' && (
+                                          <span className="text-xs text-yellow-600 dark:text-yellow-400 italic">{t('sites.emptyContentWarning')}</span>
+                                        )}
                                       </div>
-                                    )}
-                                    <div className="text-xs text-gray-700 dark:text-gray-300 break-words prose prose-xs max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(c.content) }} />
+                                      <div className="text-xs text-gray-700 dark:text-gray-300 break-words prose prose-xs max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(c.content) }} />
+                                    </div>
                                   </div>
-                                  {c.providerName === 'visitor' && (
-                                    <button
-                                      className="text-xs text-red-500 hover:text-red-700 shrink-0 mt-0.5 opacity-60 hover:opacity-100 cursor-pointer"
-                                      onClick={() => { if (confirm(t('common.delete') + '?')) deleteVisitorMutation.mutate(c.id) }}
-                                      disabled={deleteVisitorMutation.isPending}
-                                    >
-                                      {t('common.delete')}
-                                    </button>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                                ))}
+                              </div>
+                            )
+                          })()}
                         </td>
                       </tr>
                     )}

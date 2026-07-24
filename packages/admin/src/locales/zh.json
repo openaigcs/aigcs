@@ -1,4 +1,19 @@
 {
+  "providerNames": {
+    "gemini": "Google Gemini",
+    "openai": "OpenAI",
+    "claude": "Anthropic Claude",
+    "grok": "xAI Grok",
+    "deepseek": "DeepSeek",
+    "xiaomi": "小米大模型",
+    "doubao": "豆包",
+    "hunyuan": "腾讯混元",
+    "qwen": "通义千问",
+    "glm": "智谱GLM",
+    "minimax": "MiniMax",
+    "kimi": "月之暗面 Kimi",
+    "ollama": "Ollama"
+  },
   "notifications": {
     "title": "通知中心",
     "empty": "暂无通知",
@@ -346,6 +361,8 @@
     "templateName": "模板名称",
     "content": "内容",
     "language": "语言",
+    "langZh": "中文",
+    "langEn": "英文",
     "category": "分类",
     "system": "系统",
     "noPrompts": "暂无提示词模板",
@@ -752,6 +769,8 @@
     "subtitle": "AI 生成评论系统"
   },
   "common": {
+    "all": "全部",
+    "none": "无",
     "loading": "加载中...",
     "error": "出错了",
     "save": "保存",

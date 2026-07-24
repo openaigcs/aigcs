@@ -905,7 +905,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                     }`}
                   >
                     <ProviderIcon name={p.name} size={16} avatarSvg={providerDefaults?.[p.name]?.avatarSvg} />
-                    <span>{p.displayName}</span>
+                    <span>{String(t(`providerNames.${p.name}`, { defaultValue: p.displayName || p.name }))}</span>
                     {p.isConfigured && (
                       <span className="w-1.5 h-1.5 rounded-full bg-green-500" title="已全局配置 Key" />
                     )}
@@ -1033,7 +1033,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                       />
                     </div>
 
-                    {(['gemini', 'grok', 'claude', 'ollama'].includes(p.name) || !['openai', 'deepseek', 'xiaomi', 'doubao', 'hunyuan', 'quark', 'qwen', 'glm', 'minimax', 'kimi'].includes(p.name)) && (
+                    {(['gemini', 'grok', 'claude', 'ollama'].includes(p.name) || !['openai', 'deepseek', 'xiaomi', 'doubao', 'hunyuan', 'qwen', 'glm', 'minimax', 'kimi'].includes(p.name)) && (
                       <div>
                         <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.providerType')}</label>
                         <Select
@@ -1095,7 +1095,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                     <div>
                       <div className="flex items-center gap-3 shrink-0 whitespace-nowrap">
                         <ProviderIcon name={p.name} size={24} avatarSvg={p.avatarSvg} />
-                        <span className="font-medium dark:text-white">{p.displayName || p.name}</span>
+                        <span className="font-medium dark:text-white">{String(t(`providerNames.${p.name}`, { defaultValue: p.displayName || p.name }))}</span>
                         <span className="text-xs text-gray-400">{p.name}</span>
                         <span className={`text-xs px-2 py-0.5 rounded ${p.enabled ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400'}`}>
                           {p.enabled ? t('sites.enabled') : t('sites.disabled')}
@@ -1218,7 +1218,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                       #{idx + 1}
                     </span>
                     <ProviderIcon name={p.name} avatarSvg={p.avatarSvg} size={20} />
-                    <span className="text-sm font-medium dark:text-gray-200">{p.displayName}</span>
+                    <span className="text-sm font-medium dark:text-gray-200">{String(t(`providerNames.${p.name}`, { defaultValue: p.displayName || p.name }))}</span>
                     {p.model && (
                       <span className="text-xs text-gray-400">({p.modelDisplayName || p.model})</span>
                     )}
@@ -2335,7 +2335,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                       : 'bg-gray-50 border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400'
                   }`}>
                     <input type="checkbox" checked={selectedProviderIds.includes(p.id) || selectAllProviders} onChange={() => setSelectedProviderIds((prev) => prev.includes(p.id) ? prev.filter((pid) => pid !== p.id) : [...prev, p.id])} className="hidden" />
-                    {p.displayName || p.name}
+                    {String(t(`providerNames.${p.name}`, { defaultValue: p.displayName || p.name }))}
                   </label>
                 ))}
               </div>
@@ -2623,7 +2623,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                       <select value={filterProvider} onChange={(e) => { setFilterProvider(e.target.value); setPage(1) }} className="text-gray-500 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-800 text-xs ml-1">
                         <option value="">{t('sites.allProviders')}</option>
                         {(siteProviders || []).filter((p: any) => p.enabled).map((p: any) => (
-                          <option key={p.id} value={p.displayName}>{p.displayName || p.name}</option>
+                          <option key={p.id} value={p.displayName}>{String(t(`providerNames.${p.name}`, { defaultValue: p.displayName || p.name }))}</option>
                         ))}
                       </select>
                   </th>

@@ -625,7 +625,6 @@ router.get('/builtin-providers', async (c) => {
     { name: 'xiaomi', displayName: '小米大模型', type: 'openai-compatible', endpoint: 'https://api.xiaomimimo.com/v1', auth: 'Bearer Token', defaultModel: 'mimo-v2.5', weight: 55 },
     { name: 'doubao', displayName: '豆包', type: 'openai-compatible', endpoint: 'https://ark.cn-beijing.volces.com/api/v3', auth: 'Bearer Token', defaultModel: 'doubao-1.5-pro', weight: 60 },
     { name: 'hunyuan', displayName: '混元', type: 'openai-compatible', endpoint: 'https://api.hunyuan.cloud.tencent.com/v1', auth: 'Bearer Token', defaultModel: 'hunyuan-turbo', weight: 70 },
-    { name: 'quark', displayName: '夸克', type: 'openai-compatible', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', auth: 'Bearer Token', defaultModel: 'qwen-turbo', weight: 80 },
     { name: 'qwen', displayName: '千问', type: 'openai-compatible', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', auth: 'Bearer Token', defaultModel: 'qwen-turbo', weight: 90 },
     { name: 'glm', displayName: '智谱GLM', type: 'openai-compatible', endpoint: 'https://open.bigmodel.cn/api/paas/v4', auth: 'Bearer Token', defaultModel: 'glm-4-plus', weight: 100 },
     { name: 'minimax', displayName: 'MiniMax', type: 'openai-compatible', endpoint: 'https://api.minimax.ai/v1', auth: 'Bearer Token', defaultModel: 'minimax-text-01', weight: 110 },

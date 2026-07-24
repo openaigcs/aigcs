@@ -25,7 +25,6 @@ const API_KEY_URLS: Record<string, string> = {
   deepseek: 'https://platform.deepseek.com/',
   doubao: 'https://console.volcengine.com/',
   hunyuan: 'https://console.cloud.tencent.com/',
-  quark: 'https://bailian.console.aliyun.com/',
   qwen: 'https://bailian.console.aliyun.com/',
   glm: 'https://open.bigmodel.cn/',
   minimax: 'https://platform.minimaxi.com/',
@@ -191,7 +190,7 @@ export const Route = createRoute({
                       <td className="py-2 pr-4 font-medium dark:text-gray-200">
                         <div className="flex items-center gap-2">
                           <ProviderIcon name={p.name} size={20} avatarSvg={defaults?.[p.name]?.avatarSvg} />
-                          {p.displayName}
+                          {String(t(`providerNames.${p.name}`, { defaultValue: p.displayName || p.name }))}
                           {p.isCustom && <Badge color="orange">{t('providersPage.custom')}</Badge>}
                         </div>
                       </td>

@@ -16,7 +16,6 @@ const builtinProviders = new Map<string, AIProviderInterface>([
   ['xiaomi', createOpenAICompatibleProvider('xiaomi', '小米大模型')],
   ['doubao', createOpenAICompatibleProvider('doubao', '豆包')],
   ['hunyuan', createOpenAICompatibleProvider('hunyuan', '混元')],
-  ['quark', createOpenAICompatibleProvider('quark', '夸克')],
   ['qwen', createOpenAICompatibleProvider('qwen', '千问')],
   ['glm', createOpenAICompatibleProvider('glm', '智谱GLM')],
   ['minimax', createOpenAICompatibleProvider('minimax', 'MiniMax')],

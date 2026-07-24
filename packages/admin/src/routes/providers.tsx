@@ -5,6 +5,7 @@ import { useState, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PrimaryButton, SecondaryButton, DangerButton, Input, Select, Card, Badge } from '../components/ui'
 import { ProviderIcon } from '../components/provider-icon'
+import { api } from '../lib/api'
 
 interface BuiltinProvider {
   name: string; displayName: string; type: string; endpoint: string; auth: string; defaultModel: string; weight: number
@@ -237,21 +238,23 @@ export const Route = createRoute({
                               }} className="space-y-4">
                                 <div>
                                   <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('providersPage.apiKey')}</label>
-                                  <div className="relative flex items-center">
-                                    <Input type={showPasswordKey ? 'text' : 'password'} value={editKey} onChange={setEditKey} placeholder={t('common.enterApiKey')} className="font-mono pr-10" />
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowPasswordKey(!showPasswordKey)}
-                                      className="absolute right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer p-1"
-                                      title={showPasswordKey ? '隐藏 Key' : '显示 Key'}
-                                    >
-                                      {showPasswordKey ? (
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
-                                      ) : (
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                                      )}
-                                    </button>
-                                  </div>
+                                  <Input
+                                    type="password"
+                                    value={editKey}
+                                    onChange={setEditKey}
+                                    placeholder={t('common.enterApiKey')}
+                                    className="font-mono"
+                                    onToggleShowPassword={async (showing) => {
+                                      if (showing && editKey.includes('****') && expanded) {
+                                        try {
+                                          const res = await api<{ apiKey: string }>(`/api/admin/provider-defaults/${expanded}/key`)
+                                          if (res?.apiKey) setEditKey(res.apiKey)
+                                        } catch (err) {
+                                          console.error('Failed to fetch decrypted key', err)
+                                        }
+                                      }
+                                    }}
+                                  />
                                   {API_KEY_URLS[expanded || ''] && (
                                     <a href={API_KEY_URLS[expanded!]} target="_blank" rel="noopener noreferrer" className="cursor-pointer text-xs text-blue-500 hover:underline mt-1 inline-block">{t('providersPage.getApiKey')}</a>
                                   )}

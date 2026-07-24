@@ -322,6 +322,22 @@ router.get('/sites/:siteId/providers/:providerId/key', async (c) => {
   return c.json({ code: 0, data: { apiKey: plainKey } })
 })
 
+router.get('/provider-defaults/:name/key', requireRole('admin'), async (c) => {
+  const name = c.req.param('name')
+  const raw = getRawDb() as any
+  const row = raw.prepare("SELECT provider_defaults FROM system_config WHERE id = 'global'").get() as { provider_defaults: string | null } | undefined
+  if (row?.provider_defaults) {
+    try {
+      const defaults = JSON.parse(row.provider_defaults)
+      const def = defaults[name]
+      if (def?.apiKey) {
+        return c.json({ code: 0, data: { apiKey: decrypt(def.apiKey) } })
+      }
+    } catch {}
+  }
+  return c.json({ code: 0, data: { apiKey: '' } })
+})
+
 router.post('/sites/:siteId/providers', zValidator('json', z.object({
   name: z.string().min(1),
   displayName: z.string().min(1),
@@ -1294,6 +1310,7 @@ interface GenerationTaskProgress {
   skipped: number
   currentPath?: string
   currentTitle?: string
+  currentProvider?: string
   errors: Array<{ path: string; message: string; timestamp: string }>
   startedAt: string
   updatedAt: string
@@ -1331,7 +1348,7 @@ router.post('/sites/:siteId/generation-progress/cancel', async (c) => {
 
 router.post('/sites/:siteId/cache/warm', zValidator('json', z.object({
   providerIds: z.array(z.string()).optional(),
-  concurrency: z.number().int().min(1).max(20).optional(),
+  concurrency: z.number().int().min(1).optional(),
   interval: z.number().int().min(0).optional(),
   selector: z.string().optional(),
   overwrite: z.boolean().optional().default(false),
@@ -1413,10 +1430,20 @@ async function runGenerationBatchTask(
   const { generateComments } = await import('../routes/widget.js')
   const { createNotification } = await import('../services/notification.js')
 
+  const db = getDb()
   const concurrency = options?.concurrency || 1
   const interval = options?.interval ?? 10
   const overwrite = options?.overwrite ?? false
   const taskId = 'gen_' + nanoid(8)
+
+  let activeProviderNames = ''
+  if (options?.providerIds && options.providerIds.length > 0) {
+    const pRows = db.select({ displayName: providers.displayName }).from(providers).where(and(eq(providers.siteId, siteId), inArray(providers.id, options.providerIds))).all()
+    activeProviderNames = pRows.map((p: any) => p.displayName).join(', ')
+  } else {
+    const pRows = db.select({ displayName: providers.displayName }).from(providers).where(and(eq(providers.siteId, siteId), eq(providers.enabled, 1 as any))).all()
+    activeProviderNames = pRows.map((p: any) => p.displayName).join(', ')
+  }
 
   const progress: GenerationTaskProgress = {
     taskId,
@@ -1429,6 +1456,7 @@ async function runGenerationBatchTask(
     skipped: 0,
     currentPath: entries[0]?.path || '',
     currentTitle: entries[0]?.title || '',
+    currentProvider: activeProviderNames,
     errors: [],
     startedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -1591,11 +1619,12 @@ router.post('/sites/:siteId/cache/generate', zValidator('json', z.object({
   paths: z.array(z.string()),
   providerIds: z.array(z.string()).optional(),
   overwrite: z.boolean().optional().default(false),
+  concurrency: z.number().int().min(1).optional().default(1),
 })), async (c) => {
   const siteId = c.req.param('siteId')
   requireSiteOwnership(c, siteId)
   const db = getDb()
-  const { paths, providerIds, overwrite } = c.req.valid('json')
+  const { paths, providerIds, overwrite, concurrency } = c.req.valid('json')
   const site = db.select({ domain: sites.domain }).from(sites).where(eq(sites.id, siteId)).get() as any
   if (!site) throw new HTTPException(404, { message: 'Site not found' })
 
@@ -1610,11 +1639,11 @@ router.post('/sites/:siteId/cache/generate', zValidator('json', z.object({
     return { path: p, title: found?.title || p }
   })
 
-  runGenerationBatchTask(user.id, siteId, site.domain, entriesToRun, { providerIds, overwrite }).catch((err) => {
+  runGenerationBatchTask(user.id, siteId, site.domain, entriesToRun, { providerIds, overwrite, concurrency }).catch((err) => {
     console.error('[cache/generate] Task error:', err)
   })
 
-  insertAuditLog(db, { id: nanoid(), userId: user.id, action: 'cache.generate', details: { siteId, count: paths.length, overwrite } })
+  insertAuditLog(db, { id: nanoid(), userId: user.id, action: 'cache.generate', details: { siteId, count: paths.length, overwrite, concurrency } })
   return c.json({ code: 0, data: { count: paths.length, message: `Started generating for ${paths.length} entries` } })
 })
 

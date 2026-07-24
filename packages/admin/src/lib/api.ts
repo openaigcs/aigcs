@@ -40,3 +40,12 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
 
   return res
 }
+
+export async function api<T = any>(url: string, options: RequestInit = {}): Promise<T> {
+  const res = await apiFetch(url, options)
+  const json = await res.json()
+  if (!res.ok || json.code !== 0) {
+    throw new Error(json.message || 'Request failed')
+  }
+  return json.data
+}

@@ -696,7 +696,7 @@ function CommentImportExport({ siteId }: { siteId: string }) {
 }
 
 function ProvidersTab({ siteId }: { siteId: string }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<any>({})
@@ -795,6 +795,13 @@ function ProvidersTab({ siteId }: { siteId: string }) {
   const { data: prompts } = useQuery({
     queryKey: ['prompts'],
     queryFn: () => api<any[]>('/api/admin/prompts'),
+  })
+
+  const [showAllPrompts, setShowAllPrompts] = useState(false)
+  const currentLangPrefix = i18n.language ? i18n.language.split('-')[0] : 'zh'
+  const availablePrompts = (prompts || []).filter((pt: any) => {
+    if (showAllPrompts) return true
+    return pt.lang === i18n.language || pt.lang === currentLangPrefix
   })
 
   const { data: builtinProviders } = useQuery({
@@ -934,10 +941,26 @@ function ProvidersTab({ siteId }: { siteId: string }) {
 
           <div>
             <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.promptTemplate')}</label>
-            <Select value={addForm.promptTemplateId || ''} onChange={(v) => setAddForm({ ...addForm, promptTemplateId: v })}>
-              <option value="">({t('common.none')})</option>
-              {prompts?.map((pt: any) => <option key={pt.id} value={pt.id}>{pt.name}</option>)}
-            </Select>
+            <div className="flex gap-2 items-center">
+              <div className="flex-1">
+                <Select value={addForm.promptTemplateId || ''} onChange={(v) => setAddForm({ ...addForm, promptTemplateId: v })}>
+                  <option value="">({t('common.none')})</option>
+                  {availablePrompts.map((pt: any) => (
+                    <option key={pt.id} value={pt.id}>
+                      [{pt.lang ? pt.lang.toUpperCase() : 'ZH'}] {pt.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAllPrompts(!showAllPrompts)}
+                className="px-3 py-2 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors whitespace-nowrap cursor-pointer shrink-0"
+                title={showAllPrompts ? "点击仅显示当前语言模板" : "点击显示所有语言模板"}
+              >
+                {showAllPrompts ? '🌐 仅当前语言' : '🌐 显示所有语言'}
+              </button>
+            </div>
           </div>
 
           {createMutation.isError && (
@@ -964,62 +987,52 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                   }}
                   className="space-y-3"
                 >
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.displayName')}</label>
-                      <Input value={editForm.displayName || ''} onChange={(v) => setEditForm({ ...editForm, displayName: v })} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.model')}</label>
-                      <Input value={editForm.model || ''} onChange={(v) => setEditForm({ ...editForm, model: v })} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.modelDisplayName')}</label>
-                      <Input value={editForm.modelDisplayName || ''} onChange={(v) => setEditForm({ ...editForm, modelDisplayName: v })} placeholder={t('sites.modelDisplayNamePlaceholder')} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.apiEndpoint')}</label>
-                      <Input value={editForm.apiEndpoint || ''} onChange={(v) => setEditForm({ ...editForm, apiEndpoint: v })} placeholder={t('sites.apiEndpointPlaceholder')} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.apiKey')}</label>
-                      <div className="relative flex items-center">
-                        <Input
-                          type={showApiKeyMap[p.id] ? 'text' : 'password'}
-                          value={editForm.apiKey || ''}
-                          onChange={(v) => setEditForm({ ...editForm, apiKey: v })}
-                          placeholder={t('sites.apiKeyPlaceholder')}
-                          className="pr-10"
-                        />
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const willShow = !showApiKeyMap[p.id]
-                            setShowApiKeyMap(prev => ({ ...prev, [p.id]: willShow }))
-                            if (willShow && editForm.apiKey && editForm.apiKey.startsWith('****')) {
-                              try {
-                                const res = await api<{ apiKey: string }>(`/api/admin/sites/${siteId}/providers/${p.id}/key`)
-                                if (res?.apiKey) setEditForm((prev: any) => ({ ...prev, apiKey: res.apiKey }))
-                              } catch (e) {
-                                console.error('Failed to fetch decrypted key', e)
-                              }
-                            }
-                          }}
-                          className="absolute right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer p-1"
-                          title={showApiKeyMap[p.id] ? '隐藏 Key' : '显示 Key'}
-                        >
-                          {showApiKeyMap[p.id] ? (
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
-                          ) : (
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                          )}
-                        </button>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.displayName')}</label>
+                        <Input value={editForm.displayName || ''} onChange={(v) => setEditForm({ ...editForm, displayName: v })} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.model')}</label>
+                        <Input value={editForm.model || ''} onChange={(v) => setEditForm({ ...editForm, model: v })} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.modelDisplayName')}</label>
+                        <Input value={editForm.modelDisplayName || ''} onChange={(v) => setEditForm({ ...editForm, modelDisplayName: v })} placeholder={t('sites.modelDisplayNamePlaceholder')} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.sortWeight')}</label>
+                        <Input type="number" value={editForm.sortWeight ?? 0} onChange={(v) => setEditForm({ ...editForm, sortWeight: Number(v) })} />
                       </div>
                     </div>
+
                     <div>
-                      <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.sortWeight')}</label>
-                      <Input type="number" value={editForm.sortWeight ?? 0} onChange={(v) => setEditForm({ ...editForm, sortWeight: Number(v) })} />
+                      <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.apiEndpoint')}</label>
+                      <Input value={editForm.apiEndpoint || ''} onChange={(v) => setEditForm({ ...editForm, apiEndpoint: v })} placeholder={t('sites.apiEndpointPlaceholder')} className="font-mono" />
                     </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.apiKey')}</label>
+                      <Input
+                        type="password"
+                        value={editForm.apiKey || ''}
+                        onChange={(v) => setEditForm({ ...editForm, apiKey: v })}
+                        placeholder={t('sites.apiKeyPlaceholder')}
+                        className="font-mono"
+                        onToggleShowPassword={async (showing) => {
+                          if (showing && (editForm.apiKey?.startsWith('****') || editForm.apiKey?.includes('****'))) {
+                            try {
+                              const res = await api<{ apiKey: string }>(`/api/admin/sites/${siteId}/providers/${p.id}/key`)
+                              if (res?.apiKey) setEditForm((prev: any) => ({ ...prev, apiKey: res.apiKey }))
+                            } catch (e) {
+                              console.error('Failed to fetch decrypted key', e)
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+
                     {(['gemini', 'grok', 'claude', 'ollama'].includes(p.name) || !['openai', 'deepseek', 'xiaomi', 'doubao', 'hunyuan', 'quark', 'qwen', 'glm', 'minimax', 'kimi'].includes(p.name)) && (
                       <div>
                         <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.providerType')}</label>
@@ -1047,10 +1060,26 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.promptTemplate')}</label>
-                    <Select value={editForm.promptTemplateId || ''} onChange={(v) => setEditForm({ ...editForm, promptTemplateId: v })}>
-                      <option value="">({t('common.none')})</option>
-                      {prompts?.map((pt: any) => <option key={pt.id} value={pt.id}>{pt.name}</option>)}
-                    </Select>
+                    <div className="flex gap-2 items-center">
+                      <div className="flex-1">
+                        <Select value={editForm.promptTemplateId || ''} onChange={(v) => setEditForm({ ...editForm, promptTemplateId: v })}>
+                          <option value="">({t('common.none')})</option>
+                          {availablePrompts.map((pt: any) => (
+                            <option key={pt.id} value={pt.id}>
+                              [{pt.lang ? pt.lang.toUpperCase() : 'ZH'}] {pt.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowAllPrompts(!showAllPrompts)}
+                        className="px-3 py-2 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors whitespace-nowrap cursor-pointer shrink-0"
+                        title={showAllPrompts ? "点击仅显示当前语言模板" : "点击显示所有语言模板"}
+                      >
+                        {showAllPrompts ? '🌐 仅当前语言' : '🌐 显示所有语言'}
+                      </button>
+                    </div>
                   </div>
                   {saveEditMutation.isError && (
                     <p className="text-sm text-red-500 mb-1">{(saveEditMutation.error as any)?.message || '保存失败'}</p>
@@ -1823,8 +1852,9 @@ function GenerationProgressCard({ siteId }: { siteId: string }) {
           <span>剩余: <strong>{Math.max(0, progress.total - progress.current)}</strong></span>
         </div>
         {progress.currentTitle && (
-          <div className="truncate max-w-xs text-gray-500 dark:text-gray-400" title={progress.currentPath}>
-            当前: {progress.currentTitle}
+          <div className="truncate max-w-sm text-gray-600 dark:text-gray-300" title={`${progress.currentProvider ? `[${progress.currentProvider}] ` : ''}${progress.currentPath}`}>
+            当前: {progress.currentProvider ? <span className="text-blue-600 dark:text-blue-400 font-semibold mr-1">[{progress.currentProvider}]</span> : null}
+            <span>{progress.currentTitle}</span>
           </div>
         )}
       </div>
@@ -2022,10 +2052,11 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
   })
 
   const [overwriteMode, setOverwriteMode] = useState(false)
+  const [concurrencyVal, setConcurrencyVal] = useState<number>(1)
 
   const warmMutation = useMutation({
     mutationFn: async () => {
-      const body: any = { overwrite: overwriteMode }
+      const body: any = { overwrite: overwriteMode, concurrency: concurrencyVal || 1 }
       if (!selectAllProviders) body.providerIds = selectedProviderIds
       const res = await fetch(`/api/admin/sites/${siteId}/cache/warm`, {
         method: 'POST',
@@ -2068,7 +2099,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
 
   const generateMutation = useMutation({
     mutationFn: async (paths: string[]) => {
-      const body: any = { paths, overwrite: overwriteMode }
+      const body: any = { paths, overwrite: overwriteMode, concurrency: concurrencyVal || 1 }
       if (!selectAllProviders) body.providerIds = selectedProviderIds
       const res = await fetch(`/api/admin/sites/${siteId}/cache/generate`, {
         method: 'POST',
@@ -2336,6 +2367,26 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
               </div>
             </div>
 
+            <div className="pt-2 border-t border-blue-200/60 dark:border-blue-800/60 flex flex-wrap items-center justify-between gap-2">
+              <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                ⚡ 生成并发线程数 (同时向 AI 发起请求的文章数)：
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={concurrencyVal}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value)
+                    setConcurrencyVal(isNaN(val) ? 1 : Math.max(1, val))
+                  }}
+                  className="w-20 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="1"
+                />
+                <span className="text-xs text-gray-500 dark:text-gray-400">(默认: 1，并发设置过高易触发 API 429 限流报错)</span>
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-1">
               <PrimaryButton onClick={() => {
                 if (generatePanel === 'all') { setConfirmWarm(true); setGeneratePanel(null) }
@@ -2567,9 +2618,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                         <option value="">{t('common.all')}</option>
                         <option value="ready">{t('content.statusGenerated')}</option>
                         <option value="missing">{t('content.statusNotGenerated')}</option>
-                        <option value="pending">{t('content.statusPending')}</option>
                         <option value="failed">{t('content.statusFailed')}</option>
-                        <option value="unfetched">{t('content.statusUnfetched')}</option>
                       </select>
                       <select value={filterProvider} onChange={(e) => { setFilterProvider(e.target.value); setPage(1) }} className="text-gray-500 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-800 text-xs ml-1">
                         <option value="">{t('sites.allProviders')}</option>
@@ -2597,24 +2646,28 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                       <td className="py-1.5 pr-2" onClick={(e) => e.stopPropagation()}>
                         <input type="checkbox" checked={selectedPaths.includes(entry.path)} onChange={() => toggleSelect(entry.path)} className="dark:bg-gray-800" />
                       </td>
-<td className={`py-2 pr-4 text-xs max-w-[200px] ${expandedPath === entry.path ? 'break-words' : 'truncate'}`} title={entry.title || entry.path}>
-                      {entry.title || entry.path}
-                    </td>
-                    <td className={`py-2 pr-4 font-mono text-xs max-w-[150px] ${expandedPath === entry.path ? 'break-words' : 'truncate'}`} title={entry.path}>{entry.path}</td>
-                      <td className="py-2 pr-4">
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${
-                          entry.status === 'ready' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
-                          entry.status === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
-                          entry.status === 'generating' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
-                          'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
-                        }`}>{entry.status}</span>
-                        {cacheStatus?.providerStatusMap?.[entry.path] && (
-                          <div className="flex flex-wrap gap-0.5 mt-1">
+                      <td className={`py-2 pr-4 text-xs max-w-[200px] ${expandedPath === entry.path ? 'break-words' : 'truncate'}`} title={entry.title || entry.path}>
+                        {entry.title || entry.path}
+                      </td>
+                      <td className={`py-2 pr-4 font-mono text-xs max-w-[150px] ${expandedPath === entry.path ? 'break-words' : 'truncate'}`} title={entry.path}>{entry.path}</td>
+                      <td className="py-2 pr-4 align-middle">
+                        {cacheStatus?.providerStatusMap?.[entry.path] ? (
+                          <div className="flex items-center flex-wrap gap-1.5 min-h-[24px]">
                             {Object.entries(cacheStatus.providerStatusMap[entry.path]).map(([name, st]) => (
-                              <span key={name} className={`inline-block w-1.5 h-1.5 rounded-full ${
-                                st === 'ready' ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
-                              }`} title={`${name}: ${st === 'ready' ? t('content.statusGenerated') : t('content.statusPending')}`} />
+                              <span
+                                key={name}
+                                className={`inline-block w-2.5 h-2.5 rounded-full transition-transform hover:scale-125 cursor-help ${
+                                  st === 'ready'
+                                    ? 'bg-green-500 shadow-sm shadow-green-500/50'
+                                    : 'bg-gray-300 dark:bg-gray-600'
+                                }`}
+                                title={`${name}: ${st === 'ready' ? t('content.statusGenerated') : t('content.statusPending')}`}
+                              />
                             ))}
+                          </div>
+                        ) : (
+                          <div className="flex items-center min-h-[24px]">
+                            <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300 dark:bg-gray-600" title={t('content.statusNotGenerated')} />
                           </div>
                         )}
                       </td>

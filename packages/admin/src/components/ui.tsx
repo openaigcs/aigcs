@@ -64,7 +64,7 @@ export function DangerButton({ children, onClick, disabled, type, className = ''
   )
 }
 
-export function Input({ value, onChange, placeholder, type = 'text', required, minLength, maxLength, readOnly, multiline, className = '', ...rest }: {
+export function Input({ value, onChange, placeholder, type = 'text', required, minLength, maxLength, readOnly, multiline, className = '', onToggleShowPassword, ...rest }: {
   value: string | number
   onChange: (v: string) => void
   placeholder?: string
@@ -75,6 +75,7 @@ export function Input({ value, onChange, placeholder, type = 'text', required, m
   readOnly?: boolean
   multiline?: boolean
   className?: string
+  onToggleShowPassword?: (showing: boolean) => void
   [key: string]: any
 }) {
   const [showPassword, setShowPassword] = useState(false)
@@ -99,7 +100,7 @@ export function Input({ value, onChange, placeholder, type = 'text', required, m
   
   if (isPassword) {
     return (
-      <div className="relative flex items-center">
+      <div className="relative flex items-center w-full">
         <input
           type={actualType}
           value={value}
@@ -114,8 +115,14 @@ export function Input({ value, onChange, placeholder, type = 'text', required, m
         />
         <button
           type="button"
-          onClick={() => setShowPassword(!showPassword)}
-          className="absolute right-3 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none cursor-pointer"
+          onClick={() => {
+            const nextShowing = !showPassword
+            setShowPassword(nextShowing)
+            if (onToggleShowPassword) {
+              onToggleShowPassword(nextShowing)
+            }
+          }}
+          className="absolute right-3 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none cursor-pointer p-0.5"
           title={showPassword ? "隐藏" : "显示"}
         >
           {showPassword ? (

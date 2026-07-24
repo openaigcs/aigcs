@@ -1821,6 +1821,7 @@ function GenerationProgressCard({ siteId }: { siteId: string }) {
       <div className="flex items-center justify-between text-xs text-blue-800 dark:text-blue-300">
         <div className="flex gap-4">
           <span>成功: <strong className="text-green-600 dark:text-green-400">{progress.success}</strong></span>
+          <span>跳过已有: <strong className="text-amber-600 dark:text-amber-400">{progress.skipped || 0}</strong></span>
           <span>失败/异常: <strong className="text-red-600 dark:text-red-400">{progress.failed}</strong></span>
           <span>剩余: <strong>{Math.max(0, progress.total - progress.current)}</strong></span>
         </div>
@@ -2023,9 +2024,11 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
     },
   })
 
+  const [overwriteMode, setOverwriteMode] = useState(false)
+
   const warmMutation = useMutation({
     mutationFn: async () => {
-      const body: any = {}
+      const body: any = { overwrite: overwriteMode }
       if (!selectAllProviders) body.providerIds = selectedProviderIds
       const res = await fetch(`/api/admin/sites/${siteId}/cache/warm`, {
         method: 'POST',
@@ -2067,7 +2070,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
 
   const generateMutation = useMutation({
     mutationFn: async (paths: string[]) => {
-      const body: any = { paths }
+      const body: any = { paths, overwrite: overwriteMode }
       if (!selectAllProviders) body.providerIds = selectedProviderIds
       const res = await fetch(`/api/admin/sites/${siteId}/cache/generate`, {
         method: 'POST',
@@ -2283,31 +2286,62 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
 
         {/* Generate options panel */}
         {generatePanel && enabledProviders.length > 0 && (
-          <div className="mb-4 p-3 border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <div className="text-xs text-orange-600 dark:text-orange-400 mb-2.5 font-medium">
+          <div className="mb-4 p-3 border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 rounded-lg space-y-3">
+            <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">
               ⚠️ {t('sites.warmTips')}
             </div>
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-1.5">
-              <input type="checkbox" checked={selectAllProviders} onChange={() => { setSelectAllProviders(!selectAllProviders); if (!selectAllProviders) setSelectedProviderIds([]) }} className="dark:bg-gray-800" />
-              {t('sites.rssSelectAll')}
-            </label>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {enabledProviders.map((p: any) => (
-                <label key={p.id} className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded cursor-pointer border transition-colors ${
-                  selectedProviderIds.includes(p.id) || selectAllProviders
-                    ? 'bg-white border-blue-300 text-blue-700 dark:bg-blue-900 dark:border-blue-600 dark:text-blue-300'
-                    : 'bg-gray-50 border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400'
-                }`}>
-                  <input type="checkbox" checked={selectedProviderIds.includes(p.id) || selectAllProviders} onChange={() => setSelectedProviderIds((prev) => prev.includes(p.id) ? prev.filter((pid) => pid !== p.id) : [...prev, p.id])} className="hidden" />
-                  {p.displayName || p.name}
-                </label>
-              ))}
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">选择 AI 提供商：</label>
+              <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 mb-1.5 cursor-pointer">
+                <input type="checkbox" checked={selectAllProviders} onChange={() => { setSelectAllProviders(!selectAllProviders); if (!selectAllProviders) setSelectedProviderIds([]) }} className="dark:bg-gray-800" />
+                {t('sites.rssSelectAll')}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {enabledProviders.map((p: any) => (
+                  <label key={p.id} className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded cursor-pointer border transition-colors ${
+                    selectedProviderIds.includes(p.id) || selectAllProviders
+                      ? 'bg-white border-blue-300 text-blue-700 dark:bg-blue-900 dark:border-blue-600 dark:text-blue-300'
+                      : 'bg-gray-50 border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400'
+                  }`}>
+                    <input type="checkbox" checked={selectedProviderIds.includes(p.id) || selectAllProviders} onChange={() => setSelectedProviderIds((prev) => prev.includes(p.id) ? prev.filter((pid) => pid !== p.id) : [...prev, p.id])} className="hidden" />
+                    {p.displayName || p.name}
+                  </label>
+                ))}
+              </div>
             </div>
-            <div className="flex gap-2">
+
+            <div className="pt-2 border-t border-blue-200/60 dark:border-blue-800/60">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">重复生成处理策略：</label>
+              <div className="flex flex-wrap items-center gap-4 text-xs">
+                <label className="flex items-center gap-1.5 cursor-pointer text-gray-800 dark:text-gray-200 font-medium">
+                  <input
+                    type="radio"
+                    name="overwriteMode"
+                    checked={!overwriteMode}
+                    onChange={() => setOverwriteMode(false)}
+                    className="text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span>🟢 跳过已生成的评论 (默认 - 增量补齐/省Token)</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer text-gray-800 dark:text-gray-200 font-medium">
+                  <input
+                    type="radio"
+                    name="overwriteMode"
+                    checked={overwriteMode}
+                    onChange={() => setOverwriteMode(true)}
+                    className="text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span>🔄 重新生成并覆盖已有评论</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
               <PrimaryButton onClick={() => {
                 if (generatePanel === 'all') { setConfirmWarm(true); setGeneratePanel(null) }
-                else { generateAll(selectedPaths) }
-              }} disabled={generateProgress !== null || warmMutation.isPending}>
+                else { generateMutation.mutate(selectedPaths) }
+              }} disabled={generateProgress !== null || warmMutation.isPending || generateMutation.isPending}>
                 {generateProgress ? `${t('content.generatingHint')} (${generateProgress.completed}/${generateProgress.total})` : t('content.generateConfirm')}
               </PrimaryButton>
               <SecondaryButton onClick={() => setGeneratePanel(null)}>{t('common.cancel')}</SecondaryButton>

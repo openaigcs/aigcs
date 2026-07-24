@@ -1291,6 +1291,7 @@ interface GenerationTaskProgress {
   current: number
   success: number
   failed: number
+  skipped: number
   currentPath?: string
   currentTitle?: string
   errors: Array<{ path: string; message: string; timestamp: string }>
@@ -1333,13 +1334,14 @@ router.post('/sites/:siteId/cache/warm', zValidator('json', z.object({
   concurrency: z.number().int().min(1).max(20).optional(),
   interval: z.number().int().min(0).optional(),
   selector: z.string().optional(),
+  overwrite: z.boolean().optional().default(false),
 }).optional()), async (c) => {
   const db = getDb()
   const siteId = c.req.param('siteId')
   requireSiteOwnership(c, siteId)
   const body = c.req.valid('json')
 
-  const opts = body || {}
+  const opts: any = body || {}
   const raw = getRawDb() as import('better-sqlite3').Database
 
   let entries: any[]
@@ -1359,6 +1361,7 @@ router.post('/sites/:siteId/cache/warm', zValidator('json', z.object({
         WHERE site_id = ?
         AND (
           status = 'pending'
+          OR ? = 1
           OR (
             status = 'ready'
             AND NOT EXISTS (
@@ -1367,15 +1370,15 @@ router.post('/sites/:siteId/cache/warm', zValidator('json', z.object({
             )
           )
         )
-      `).all(siteId, ...names) as any[]
+      `).all(siteId, opts.overwrite ? 1 : 0, ...names) as any[]
     } else {
       entries = db.select().from(pageCache)
-        .where(and(eq(pageCache.siteId, siteId), eq(pageCache.status, 'pending')))
+        .where(eq(pageCache.siteId, siteId))
         .all()
     }
   } else {
     entries = db.select().from(pageCache)
-      .where(and(eq(pageCache.siteId, siteId), eq(pageCache.status, 'pending')))
+      .where(eq(pageCache.siteId, siteId))
       .all()
   }
 
@@ -1391,6 +1394,7 @@ router.post('/sites/:siteId/cache/warm', zValidator('json', z.object({
     concurrency: opts.concurrency || 1,
     interval: opts.interval ?? 10,
     selector: opts.selector,
+    overwrite: opts.overwrite ?? false,
   }).catch((err: unknown) => {
     console.error('[warm] background error:', err)
   })
@@ -1404,13 +1408,14 @@ async function runGenerationBatchTask(
   siteId: string,
   domain: string,
   entries: Array<{ path: string; title?: string }>,
-  options?: { providerIds?: string[]; concurrency?: number; interval?: number; selector?: string }
+  options?: { providerIds?: string[]; concurrency?: number; interval?: number; selector?: string; overwrite?: boolean }
 ) {
   const { generateComments } = await import('../routes/widget.js')
   const { createNotification } = await import('../services/notification.js')
 
   const concurrency = options?.concurrency || 1
   const interval = options?.interval ?? 10
+  const overwrite = options?.overwrite ?? false
   const taskId = 'gen_' + nanoid(8)
 
   const progress: GenerationTaskProgress = {
@@ -1421,6 +1426,7 @@ async function runGenerationBatchTask(
     current: 0,
     success: 0,
     failed: 0,
+    skipped: 0,
     currentPath: entries[0]?.path || '',
     currentTitle: entries[0]?.title || '',
     errors: [],
@@ -1429,6 +1435,8 @@ async function runGenerationBatchTask(
   }
 
   siteTaskProgressMap.set(siteId, progress)
+
+  const raw = getRawDb() as any
 
   for (let i = 0; i < entries.length; i += concurrency) {
     if (progress.status === 'cancelled') {
@@ -1443,6 +1451,30 @@ async function runGenerationBatchTask(
 
     const results = await Promise.allSettled(
       batch.map(async (entry) => {
+        if (!overwrite) {
+          let hasExisting = false
+          if (options?.providerIds && options.providerIds.length > 0) {
+            const placeholders = options.providerIds.map(() => '?').join(',')
+            const count = raw.prepare(`
+              SELECT COUNT(DISTINCT provider_name) as cnt FROM comments
+              WHERE site_id = ? AND path = ? AND provider_name IN (
+                SELECT display_name FROM providers WHERE id IN (${placeholders})
+              )
+            `).get(siteId, entry.path, ...options.providerIds) as { cnt: number } | undefined
+            if (count && count.cnt >= options.providerIds.length) {
+              hasExisting = true
+            }
+          } else {
+            const count = raw.prepare('SELECT COUNT(*) as cnt FROM comments WHERE site_id = ? AND path = ?').get(siteId, entry.path) as { cnt: number } | undefined
+            if (count && count.cnt > 0) {
+              hasExisting = true
+            }
+          }
+          if (hasExisting) {
+            return { skipped: true, success: 0 }
+          }
+        }
+
         try {
           const res = await generateComments(siteId, entry.path, domain, undefined, undefined, {
             providerIds: options?.providerIds,
@@ -1469,7 +1501,9 @@ async function runGenerationBatchTask(
       if (r.status === 'rejected') {
         progress.failed++
       } else {
-        if (r.value && r.value.success > 0) {
+        if (r.value && (r.value as any).skipped) {
+          progress.skipped++
+        } else if (r.value && r.value.success > 0) {
           progress.success += r.value.success
         } else {
           progress.failed++
@@ -1490,15 +1524,22 @@ async function runGenerationBatchTask(
     progress.updatedAt = new Date().toISOString()
 
     try {
-      fireWebhook(siteId, 'cache.warm_completed', { site: siteId, total: entries.length, success: progress.success, fail: progress.failed })
+      fireWebhook(siteId, 'cache.warm_completed', { site: siteId, total: entries.length, success: progress.success, fail: progress.failed, skipped: progress.skipped })
     } catch (err) {
       console.error('[webhook] Failed to fire cache.warm_completed:', err)
     }
 
+    const summaryParts: string[] = []
+    if (progress.success > 0) summaryParts.push(`成功 ${progress.success} 条`)
+    if (progress.skipped > 0) summaryParts.push(`跳过已有 ${progress.skipped} 篇`)
+    if (progress.failed > 0) summaryParts.push(`异常 ${progress.failed} 篇`)
+
+    const msg = `总计 ${entries.length} 篇 (${summaryParts.join('，')})`
+
     if (progress.failed > 0) {
-      createNotification(userId, 'warning', '评论生成部分完成', `总计 ${entries.length} 篇，成功 ${progress.success} 条，异常 ${progress.failed} 条`, siteId)
+      createNotification(userId, 'warning', '评论生成部分完成', msg, siteId)
     } else {
-      createNotification(userId, 'success', '评论生成全部完成', `成功完成 ${progress.success} 条 AI 评论生成`, siteId)
+      createNotification(userId, 'success', '评论生成全部完成', msg, siteId)
     }
   }
 }
@@ -1549,11 +1590,12 @@ router.post('/sites/:siteId/cache/fetch', zValidator('json', z.object({
 router.post('/sites/:siteId/cache/generate', zValidator('json', z.object({
   paths: z.array(z.string()),
   providerIds: z.array(z.string()).optional(),
+  overwrite: z.boolean().optional().default(false),
 })), async (c) => {
   const siteId = c.req.param('siteId')
   requireSiteOwnership(c, siteId)
   const db = getDb()
-  const { paths, providerIds } = c.req.valid('json')
+  const { paths, providerIds, overwrite } = c.req.valid('json')
   const site = db.select({ domain: sites.domain }).from(sites).where(eq(sites.id, siteId)).get() as any
   if (!site) throw new HTTPException(404, { message: 'Site not found' })
 
@@ -1568,11 +1610,11 @@ router.post('/sites/:siteId/cache/generate', zValidator('json', z.object({
     return { path: p, title: found?.title || p }
   })
 
-  runGenerationBatchTask(user.id, siteId, site.domain, entriesToRun, { providerIds }).catch((err) => {
+  runGenerationBatchTask(user.id, siteId, site.domain, entriesToRun, { providerIds, overwrite }).catch((err) => {
     console.error('[cache/generate] Task error:', err)
   })
 
-  insertAuditLog(db, { id: nanoid(), userId: user.id, action: 'cache.generate', details: { siteId, count: paths.length } })
+  insertAuditLog(db, { id: nanoid(), userId: user.id, action: 'cache.generate', details: { siteId, count: paths.length, overwrite } })
   return c.json({ code: 0, data: { count: paths.length, message: `Started generating for ${paths.length} entries` } })
 })
 

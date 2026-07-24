@@ -2656,7 +2656,7 @@ function ContentTab({ siteId, siteDomain, pendingPath, setPendingPath }: { siteI
                             {Object.entries(cacheStatus.providerStatusMap[entry.path]).map(([name, st]) => (
                               <span
                                 key={name}
-                                className={`inline-block w-2.5 h-2.5 rounded-full transition-transform hover:scale-125 cursor-help ${
+                                className={`inline-block w-2.5 h-2.5 rounded-full transition-transform hover:scale-125 cursor-pointer ${
                                   st === 'ready'
                                     ? 'bg-green-500 shadow-sm shadow-green-500/50'
                                     : 'bg-gray-300 dark:bg-gray-600'

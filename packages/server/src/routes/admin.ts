@@ -433,6 +433,9 @@ router.post('/sites/:siteId/providers', zValidator('json', z.object({
     glm: '智谱GLM',
     minimax: 'MiniMax',
     kimi: 'Kimi',
+    wenxin: '百度文心',
+    spark: '讯飞星火',
+    kling: '可灵AI',
     ollama: 'Ollama'
   }
   const defName = builtinDefaults[body.name]
@@ -629,6 +632,9 @@ router.get('/builtin-providers', async (c) => {
     { name: 'glm', displayName: '智谱GLM', type: 'openai-compatible', endpoint: 'https://open.bigmodel.cn/api/paas/v4', auth: 'Bearer Token', defaultModel: 'glm-4-plus', weight: 100 },
     { name: 'minimax', displayName: 'MiniMax', type: 'openai-compatible', endpoint: 'https://api.minimax.ai/v1', auth: 'Bearer Token', defaultModel: 'minimax-text-01', weight: 110 },
     { name: 'kimi', displayName: 'Kimi', type: 'openai-compatible', endpoint: 'https://api.moonshot.cn/v1', auth: 'Bearer Token', defaultModel: 'kimi-latest', weight: 120 },
+    { name: 'wenxin', displayName: '百度文心', type: 'openai-compatible', endpoint: 'https://qianfan.baidubce.com/v2', auth: 'Bearer Token', defaultModel: 'ernie-4.0-turbo-8k', weight: 130 },
+    { name: 'spark', displayName: '讯飞星火', type: 'openai-compatible', endpoint: 'https://spark-api-open.xf-yun.com/v1', auth: 'Bearer Token', defaultModel: 'spark-max', weight: 140 },
+    { name: 'kling', displayName: '可灵AI', type: 'openai-compatible', endpoint: 'https://api.klingai.com/v1', auth: 'Bearer Token', defaultModel: 'kling-v1', weight: 150 },
     { name: 'ollama', displayName: 'Ollama', type: 'ollama', endpoint: 'http://localhost:11434/v1', auth: 'None (local)', defaultModel: 'llama3', weight: 999 },
   ]
   return c.json({ code: 0, data: providers })

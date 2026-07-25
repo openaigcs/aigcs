@@ -12,6 +12,9 @@
     "glm": "智谱GLM",
     "minimax": "MiniMax",
     "kimi": "月之暗面 Kimi",
+    "wenxin": "百度文心",
+    "spark": "讯飞星火",
+    "kling": "可灵 AI",
     "ollama": "Ollama"
   },
   "notifications": {

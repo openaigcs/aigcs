@@ -51,6 +51,15 @@ AVATARS['grok'] = svgDataUri(`<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/
 // Qrok alias
 AVATARS['qrok'] = AVATARS['grok']
 
+// Baidu Wenxin
+AVATARS['wenxin'] = svgDataUri(`<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#2932E1"/><path d="M12 5L14.2 9.8L19.5 10.5L15.6 14.2L16.6 19.5L12 17L7.4 19.5L8.4 14.2L4.5 10.5L9.8 9.8Z" fill="#00D2FF"/></svg>`)
+
+// iFlytek Spark
+AVATARS['spark'] = svgDataUri(`<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 1.5L14.8 9.2L22.5 12L14.8 14.8L12 22.5L9.2 14.8L1.5 12L9.2 9.2L12 1.5Z" fill="url(#av-spk)"/><defs><linearGradient id="av-spk" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#007AFF"/><stop offset="100%" stop-color="#FF5E00"/></linearGradient></defs></svg>`)
+
+// Kling AI
+AVATARS['kling'] = svgDataUri(`<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" rx="6" fill="url(#av-klg)"/><path d="M7 6v12l10-6L7 6z" fill="#FFF"/><defs><linearGradient id="av-klg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#FF2D55"/><stop offset="100%" stop-color="#6E3AFF"/></linearGradient></defs></svg>`)
+
 export function getProviderAvatar(name: string): string {
   return AVATARS[name.toLowerCase()] || ''
 }

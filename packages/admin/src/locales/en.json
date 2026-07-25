@@ -12,6 +12,9 @@
     "glm": "Zhipu GLM",
     "minimax": "MiniMax",
     "kimi": "Moonshot Kimi",
+    "wenxin": "Baidu Wenxin",
+    "spark": "iFlytek Spark",
+    "kling": "Kling AI",
     "ollama": "Ollama"
   },
   "notifications": {

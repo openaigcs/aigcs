@@ -960,7 +960,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
               />
             </div>
 
-            {(['gemini', 'grok', 'claude', 'ollama'].includes(addForm.name) || !['openai', 'deepseek', 'xiaomi', 'doubao', 'hunyuan', 'qwen', 'glm', 'minimax', 'kimi'].includes(addForm.name)) && (
+            {(['gemini', 'grok', 'claude', 'ollama'].includes(addForm.name) || !['openai', 'deepseek', 'xiaomi', 'doubao', 'hunyuan', 'qwen', 'glm', 'minimax', 'kimi', 'wenxin', 'spark', 'kling'].includes(addForm.name)) && (
               <div>
                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.providerType')}</label>
                 <Select
@@ -1081,7 +1081,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                       />
                     </div>
 
-                    {(['gemini', 'grok', 'claude', 'ollama'].includes(p.name) || !['openai', 'deepseek', 'xiaomi', 'doubao', 'hunyuan', 'qwen', 'glm', 'minimax', 'kimi'].includes(p.name)) && (
+                    {(['gemini', 'grok', 'claude', 'ollama'].includes(p.name) || !['openai', 'deepseek', 'xiaomi', 'doubao', 'hunyuan', 'qwen', 'glm', 'minimax', 'kimi', 'wenxin', 'spark', 'kling'].includes(p.name)) && (
                       <div>
                         <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.providerType')}</label>
                         <Select

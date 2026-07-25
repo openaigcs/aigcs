@@ -13,6 +13,38 @@ import OllamaAvatar from '@lobehub/icons/es/Ollama/components/Avatar'
 import GrokAvatar from '@lobehub/icons/es/Grok/components/Avatar'
 import XiaomiMiMoAvatar from '@lobehub/icons/es/XiaomiMiMo/components/Avatar'
 
+const WenxinAvatar: FC<{ size?: number }> = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="10" fill="#2932E1"/>
+    <path d="M12 5L14.2 9.8L19.5 10.5L15.6 14.2L16.6 19.5L12 17L7.4 19.5L8.4 14.2L4.5 10.5L9.8 9.8Z" fill="#00D2FF"/>
+  </svg>
+)
+
+const SparkAvatar: FC<{ size?: number }> = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 1.5L14.8 9.2L22.5 12L14.8 14.8L12 22.5L9.2 14.8L1.5 12L9.2 9.2L12 1.5Z" fill="url(#av-spk-adm)"/>
+    <defs>
+      <linearGradient id="av-spk-adm" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#007AFF"/>
+        <stop offset="100%" stopColor="#FF5E00"/>
+      </linearGradient>
+    </defs>
+  </svg>
+)
+
+const KlingAvatar: FC<{ size?: number }> = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="24" height="24" rx="6" fill="url(#av-klg-adm)"/>
+    <path d="M7 6v12l10-6L7 6z" fill="#FFF"/>
+    <defs>
+      <linearGradient id="av-klg-adm" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#FF2D55"/>
+        <stop offset="100%" stopColor="#6E3AFF"/>
+      </linearGradient>
+    </defs>
+  </svg>
+)
+
 const AVATAR_MAP: Record<string, any> = {
   openai: OpenAIAvatar,
   gemini: GeminiAvatar,
@@ -25,6 +57,9 @@ const AVATAR_MAP: Record<string, any> = {
   glm: GLMAvatar,
   minimax: MinimaxAvatar,
   kimi: MoonshotAvatar,
+  wenxin: WenxinAvatar,
+  spark: SparkAvatar,
+  kling: KlingAvatar,
   ollama: OllamaAvatar,
   xiaomi: XiaomiMiMoAvatar,
   mimo: XiaomiMiMoAvatar,

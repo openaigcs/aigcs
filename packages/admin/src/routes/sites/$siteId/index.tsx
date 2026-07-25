@@ -1746,39 +1746,40 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
       ) : items.length === 0 ? (
         <p className="text-sm text-gray-400">{t('sites.noComments')}</p>
       ) : (
-        <table className="w-full text-left text-sm table-fixed">
-          <thead>
-            <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500">
-              <th className="pb-2 pr-3 w-[15%]">{t('sites.author')}</th>
-              <th className="pb-2 pr-3 w-[17%]">{t('sites.rssPath')}</th>
-              <th className="pb-2 pr-3 w-[15%]">{t('cache.generated')}</th>
-              <th className="pb-2 pr-3 w-[39%]">{t('sites.content')}</th>
-              <th className="pb-2 text-right w-[14%] min-w-[130px]">{t('sites.actions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((c: any) => (
-              <tr key={c.type + '-' + c.id} className="border-b border-gray-200/50 dark:border-gray-700/50">
-                <td className="py-2 pr-4">
-                  <div className="flex items-center gap-2">
-                    {c.type === 'visitor' && c.source === 'fedi' && c.avatar ? (
-                      <img src={c.avatar} alt="" className="w-7 h-7 rounded-full shrink-0" loading="lazy" onError={(e: any) => { e.target.style.display = 'none' }} />
-                    ) : c.type === 'visitor' ? (
-                      <img src={gravatarSrc(c.avatarHash)} alt="" className="w-7 h-7 rounded-full shrink-0" loading="lazy" onError={(e: any) => { e.target.style.display = 'none' }} />
-                    ) : (
-                      <span className="w-7 h-7 rounded-full shrink-0 overflow-hidden"><ProviderIcon name={c.providerName || ''} avatarSvg={getAiAvatarSvg(c)} size={28} /></span>
-                    )}
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium dark:text-gray-200 truncate">{c.authorName}</div>
-                      <span className="text-xs">{c.type === 'visitor' ? <span className="text-green-500">{c.source === 'fedi' ? t('fedi.badge') : c.source || t('sites.commentPlugin')}</span> : <span className="text-gray-400">{c.model || c.providerName}</span>}</span>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500">
+                <th className="pb-2 pr-4 whitespace-nowrap min-w-[140px] max-w-[200px]">{t('sites.author')}</th>
+                <th className="pb-2 pr-4 min-w-[140px] max-w-[260px]">{t('sites.rssPath')}</th>
+                <th className="pb-2 pr-4 w-[165px] min-w-[165px] whitespace-nowrap">{t('cache.generated')}</th>
+                <th className="pb-2 pr-4 w-auto">{t('sites.content')}</th>
+                <th className="pb-2 text-right w-[140px] min-w-[140px] whitespace-nowrap">{t('sites.actions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((c: any) => (
+                <tr key={c.type + '-' + c.id} className="border-b border-gray-200/50 dark:border-gray-700/50">
+                  <td className="py-2 pr-4 align-middle max-w-[200px]">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {c.type === 'visitor' && c.source === 'fedi' && c.avatar ? (
+                        <img src={c.avatar} alt="" className="w-7 h-7 rounded-full shrink-0" loading="lazy" onError={(e: any) => { e.target.style.display = 'none' }} />
+                      ) : c.type === 'visitor' ? (
+                        <img src={gravatarSrc(c.avatarHash)} alt="" className="w-7 h-7 rounded-full shrink-0" loading="lazy" onError={(e: any) => { e.target.style.display = 'none' }} />
+                      ) : (
+                        <span className="w-7 h-7 rounded-full shrink-0 overflow-hidden"><ProviderIcon name={c.providerName || ''} avatarSvg={getAiAvatarSvg(c)} size={28} /></span>
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium dark:text-gray-200 truncate" title={c.authorName}>{c.authorName}</div>
+                        <span className="text-xs block truncate" title={c.model || c.providerName}>{c.type === 'visitor' ? <span className="text-green-500">{c.source === 'fedi' ? t('fedi.badge') : c.source || t('sites.commentPlugin')}</span> : <span className="text-gray-400">{c.model || c.providerName}</span>}</span>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td className="py-2 pr-4">
-                  <button className="text-xs text-blue-500 hover:text-blue-700 hover:underline truncate max-w-full cursor-pointer bg-transparent border-none p-0 font-inherit text-left" onClick={() => setPendingPath(c.path)} title={t('sites.viewContext')}>{c.path}</button>
-                </td>
-                <td className="py-2 pr-4 text-xs text-gray-500">{new Date(c.createdAt).toLocaleString()}</td>
-                <td className="py-2 pr-4">{
+                  </td>
+                  <td className="py-2 pr-4 align-middle max-w-[260px]">
+                    <button className="text-xs text-blue-500 hover:text-blue-700 hover:underline truncate block max-w-full cursor-pointer bg-transparent border-none p-0 font-inherit text-left" onClick={() => setPendingPath(c.path)} title={c.path}>{c.path}</button>
+                  </td>
+                <td className="py-2 pr-4 text-xs text-gray-500 align-middle whitespace-nowrap w-[165px]">{new Date(c.createdAt).toLocaleString()}</td>
+                <td className="py-2 pr-4 align-middle max-w-0 w-full">{
                   c.source === 'fedi'
                     ? <p className="text-xs text-gray-700 dark:text-gray-300 break-words line-clamp-2" dangerouslySetInnerHTML={{ __html: sanitizeFediHtml(c.content) }} />
                     : <div className="text-xs text-gray-700 dark:text-gray-300 break-words line-clamp-2 prose prose-xs max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(c.content) }} />
@@ -1809,6 +1810,7 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
             ))}
           </tbody>
         </table>
+      </div>
       )}
 
       {totalPages > 1 && (

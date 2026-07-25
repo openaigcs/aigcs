@@ -77,7 +77,7 @@ export function AvatarInput({ value, onChange, providerName = 'custom' }: Avatar
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <label className="block text-sm font-medium dark:text-gray-300">
-          {String(t('providersPage.avatarTitle', { defaultValue: '自定义 AI 头像' }))}
+          {t('providersPage.avatarTitle')}
         </label>
         {value && (
           <button
@@ -85,7 +85,7 @@ export function AvatarInput({ value, onChange, providerName = 'custom' }: Avatar
             onClick={() => onChange('')}
             className="text-xs text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
           >
-            {t('common.clear', { defaultValue: '重置/恢复默认' })}
+            {t('common.clear')}
           </button>
         )}
       </div>
@@ -100,7 +100,7 @@ export function AvatarInput({ value, onChange, providerName = 'custom' }: Avatar
               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
           }`}
         >
-          1. {String(t('providersPage.avatarModeCode', { defaultValue: '粘贴代码/Key' }))}
+          1. {t('providersPage.avatarModeCode')}
         </button>
         <button
           type="button"
@@ -111,7 +111,7 @@ export function AvatarInput({ value, onChange, providerName = 'custom' }: Avatar
               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
           }`}
         >
-          2. {String(t('providersPage.avatarModeUrl', { defaultValue: '图片 URL (CDN)' }))}
+          2. {t('providersPage.avatarModeUrl')}
         </button>
         <button
           type="button"
@@ -122,7 +122,7 @@ export function AvatarInput({ value, onChange, providerName = 'custom' }: Avatar
               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
           }`}
         >
-          3. {String(t('providersPage.avatarModeUpload', { defaultValue: '上传图片' }))}
+          3. {t('providersPage.avatarModeUpload')}
         </button>
       </div>
 
@@ -131,12 +131,12 @@ export function AvatarInput({ value, onChange, providerName = 'custom' }: Avatar
           <textarea
             value={value.startsWith('data:image/') || value.startsWith('http://') || value.startsWith('https://') ? '' : value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={String(t('providersPage.avatarCodePlaceholder', { defaultValue: '粘贴 <svg>...</svg> 代码或输入图标 key (如 openai, xiaomi)' }))}
+            placeholder={t('providersPage.avatarCodePlaceholder')}
             className="w-full p-2.5 border rounded-lg text-xs font-mono dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20"
             rows={3}
           />
           <p className="text-xs text-gray-400 dark:text-gray-500">
-            {String(t('providersPage.avatarCodeHint', { defaultValue: '支持粘贴 <svg>...</svg> 代码或输入内置图标名称' }))}
+            {t('providersPage.avatarCodeHint')}
           </p>
         </div>
       )}
@@ -147,11 +147,11 @@ export function AvatarInput({ value, onChange, providerName = 'custom' }: Avatar
             type="url"
             value={value.startsWith('data:image/') ? '' : value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={String(t('providersPage.avatarUrlPlaceholder', { defaultValue: 'https://cdn.example.com/logo.png' }))}
+            placeholder={t('providersPage.avatarUrlPlaceholder')}
             className="w-full p-2 border rounded-lg text-sm font-mono dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20"
           />
           <p className="text-xs text-gray-400 dark:text-gray-500">
-            {String(t('providersPage.avatarUrlHint', { defaultValue: '支持任意外链 CDN 图片 (PNG, JPG, WEBP, SVG 等)' }))}
+            {t('providersPage.avatarUrlHint')}
           </p>
         </div>
       )}
@@ -174,10 +174,10 @@ export function AvatarInput({ value, onChange, providerName = 'custom' }: Avatar
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                {String(t('providersPage.avatarUploadBtn', { defaultValue: '点击选择本地图片 (PNG/JPG/WEBP/SVG)' }))}
+                {t('providersPage.avatarUploadBtn')}
               </span>
               <span className="text-[11px] text-gray-400">
-                {String(t('providersPage.avatarUploadHint', { defaultValue: '自动优化压缩并保存在 AIGCS 中' }))}
+                {t('providersPage.avatarUploadHint')}
               </span>
             </div>
           </div>
@@ -187,12 +187,12 @@ export function AvatarInput({ value, onChange, providerName = 'custom' }: Avatar
       {value && (
         <div className="flex items-center gap-3 pt-1 border-t border-gray-100 dark:border-gray-700/50">
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {String(t('providersPage.avatarPreview', { defaultValue: '效果预览' }))}:
+            {t('providersPage.avatarPreview')}:
           </span>
           <div className="p-1.5 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center gap-2">
             <ProviderIcon name={providerName} size={24} avatarSvg={value} />
             <span className="text-xs font-mono text-gray-400 truncate max-w-[200px]">
-              {value.startsWith('data:') ? 'Base64 图片数据' : value.length > 30 ? value.slice(0, 30) + '...' : value}
+              {value.startsWith('data:') ? 'Base64' : value.length > 30 ? value.slice(0, 30) + '...' : value}
             </span>
           </div>
         </div>

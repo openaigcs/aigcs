@@ -3,7 +3,7 @@ import { Route as rootRoute } from './__root'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PrimaryButton, SecondaryButton, Input, Card, Badge, Toggle } from '../components/ui'
+import { PrimaryButton, SecondaryButton, DangerButton, Input, Card, Badge, Toggle } from '../components/ui'
 import { ProviderIcon } from '../components/provider-icon'
 import { AvatarInput } from '../components/avatar-input'
 
@@ -127,7 +127,7 @@ export const Route = createRoute({
           <div>
             <h1 className="text-2xl font-bold">{t('providersPage.title')}</h1>
             <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-              {String(t('providersPage.descriptionToggleOnly', { defaultValue: '全局 AI 提供商仅控制开关启用状态，具体的 API Key 与参数请在各站点的 AI 提供商中配置。' }))}
+              {t('providersPage.descriptionToggleOnly')}
             </p>
           </div>
           <PrimaryButton onClick={() => { setShowCustom(true); setExpanded(null) }}>
@@ -171,30 +171,30 @@ export const Route = createRoute({
                       </td>
                       <td className="py-3 pr-4">
                         {isEnabled ? (
-                          <Badge color="green">{String(t('providersPage.enabledStatus', { defaultValue: '已启用' }))}</Badge>
+                          <Badge color="green">{t('providersPage.enabledStatus')}</Badge>
                         ) : (
-                          <Badge color="gray">{String(t('providersPage.disabledStatus', { defaultValue: '未启用' }))}</Badge>
+                          <Badge color="gray">{t('providersPage.disabledStatus')}</Badge>
                         )}
                       </td>
-                      <td className="py-3 pr-4 flex items-center gap-3">
+                      <td className="py-3 pr-4 flex items-center gap-2">
                         <Toggle
                           checked={isEnabled}
                           onChange={(val: boolean) => toggleMutation.mutate({ name: p.name, enabled: val })}
                           disabled={toggleMutation.isPending}
                         />
-                        <button
+                        <SecondaryButton
                           onClick={() => startEdit(p.name)}
-                          className="cursor-pointer text-xs text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                          className="px-2.5 py-1 text-xs"
                         >
-                          {String(t('providersPage.editAvatar', { defaultValue: '编辑头像' }))}
-                        </button>
+                          {t('providersPage.editAvatar')}
+                        </SecondaryButton>
                         {p.isCustom && (
-                          <button
+                          <DangerButton
                             onClick={() => { if (confirm(t('common.delete') + '?')) deleteMutation.mutate(p.name) }}
-                            className="cursor-pointer text-xs text-red-600 hover:underline"
+                            className="px-2.5 py-1 text-xs"
                           >
                             {t('providersPage.delete')}
-                          </button>
+                          </DangerButton>
                         )}
                       </td>
                     </tr>

@@ -126,7 +126,7 @@ function SiteDetailPage() {
       {tab === 'providers' && <ProvidersTab siteId={siteId} />}
       {tab === 'settings' && <SettingsTab siteId={siteId} site={site} siteDomain={site.domain} contentSelector={contentSelector} setContentSelector={setContentSelector} updateSettingsMutation={updateSettingsMutation} saveSettingsDone={saveSettingsDone} />}
       {tab === 'other' && (
-        <div className="max-w-3xl space-y-8">
+        <div className="w-full space-y-8">
           <WebhooksTab siteId={siteId} siteDomain={site.domain} />
           <SiteDataSection siteId={siteId} />
         </div>
@@ -206,7 +206,7 @@ function SettingsTab({ siteId, site, siteDomain, contentSelector, setContentSele
   }
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="w-full space-y-4">
       <div>
         <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.name')}</label>
         <Input value={editName} onChange={setEditName} />
@@ -406,7 +406,7 @@ function CommentSettingsTab({ siteId }: { siteId: string }) {
   const smtpMode = settings.smtp_mode || 'global'
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="w-full space-y-4">
       <Card title={t('pluginsPage.settings')}>
         <div className="space-y-4">
           {keys.map(k => {
@@ -861,7 +861,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
   if (isError) return <div className="p-6 text-red-500">{t('common.error')}: {(error as any)?.message || t('common.requestFailed')}</div>
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold dark:text-white">{t('sites.providers')}</h3>
         <div className="flex items-center gap-2">

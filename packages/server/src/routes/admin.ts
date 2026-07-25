@@ -650,6 +650,7 @@ router.get('/provider-defaults', async (c) => {
 // PUT /admin/provider-defaults — save global provider defaults
 const providerDefaultsSchema = z.object({
   name: z.string().min(1),
+  enabled: z.boolean().optional(),
   displayName: z.string().optional(),
   type: z.string().optional(),
   apiKey: z.string().optional(),
@@ -668,13 +669,16 @@ router.put('/provider-defaults', requireRole('admin'), zValidator('json', provid
     try { defaults = JSON.parse(row.provider_defaults) } catch {}
   }
 
+  const existing = defaults[body.name] || {}
   defaults[body.name] = {
-    displayName: body.displayName || defaults[body.name]?.displayName || body.name,
-    type: body.type || defaults[body.name]?.type || 'custom',
-    apiKey: body.apiKey || defaults[body.name]?.apiKey || '',
-    apiEndpoint: body.apiEndpoint || defaults[body.name]?.apiEndpoint || '',
-    model: (body.model || defaults[body.name]?.model || '').trim(),
-    avatarSvg: body.avatarSvg || defaults[body.name]?.avatarSvg || '',
+    ...existing,
+    enabled: body.enabled !== undefined ? body.enabled : (existing.enabled ?? false),
+    displayName: body.displayName || existing.displayName || body.name,
+    type: body.type || existing.type || 'custom',
+    apiKey: body.apiKey !== undefined ? body.apiKey : (existing.apiKey || ''),
+    apiEndpoint: body.apiEndpoint !== undefined ? body.apiEndpoint : (existing.apiEndpoint || ''),
+    model: body.model !== undefined ? body.model.trim() : (existing.model || ''),
+    avatarSvg: body.avatarSvg !== undefined ? body.avatarSvg : (existing.avatarSvg || ''),
   }
 
   raw.prepare("UPDATE system_config SET provider_defaults = ?, updated_at = datetime('now') WHERE id = 'global'").run(JSON.stringify(defaults))

@@ -6,6 +6,7 @@ import { useState, useEffect, Fragment, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PrimaryButton, SecondaryButton, DangerButton, Input, Select, Card, Toggle } from '../../../components/ui'
 import { ProviderIcon } from '../../../components/provider-icon'
+import { AvatarInput } from '../../../components/avatar-input'
 import { WEBHOOK_EVENTS, webhookEventLabel } from '../../../lib/webhook-events'
 import { FediverseTab } from './fedi-tab'
 import { marked } from 'marked'
@@ -820,26 +821,28 @@ function ProvidersTab({ siteId }: { siteId: string }) {
   if (builtinProviders) {
     for (const p of builtinProviders) {
       const def = providerDefaults?.[p.name]
+      if (!def?.enabled) continue
       availableProviders.push({
         name: p.name,
         displayName: def?.displayName || p.displayName,
         type: def?.type || p.type,
         endpoint: def?.apiEndpoint || p.endpoint,
         defaultModel: def?.model || p.defaultModel,
-        isConfigured: !!def?.apiKey,
+        isConfigured: true,
       })
     }
   }
   if (providerDefaults) {
     for (const [name, cfg] of Object.entries(providerDefaults)) {
       if (builtinProviders?.some((p: any) => p.name === name)) continue
+      if (!cfg?.enabled) continue
       availableProviders.push({
         name,
         displayName: cfg.displayName || name,
         type: cfg.type || 'custom',
         endpoint: cfg.apiEndpoint || '',
         defaultModel: cfg.model || '',
-        isConfigured: !!cfg.apiKey,
+        isConfigured: true,
       })
     }
   }
@@ -1049,13 +1052,10 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.avatarSvg')}</label>
-                    <textarea
+                    <AvatarInput
                       value={editForm.avatarSvg || ''}
-                      onChange={(e) => setEditForm({ ...editForm, avatarSvg: e.target.value })}
-                      placeholder="<svg>...</svg> or data:image/svg+xml,..."
-                      className="w-full p-2 border rounded text-sm font-mono dark:bg-gray-700 dark:border-gray-600"
-                      rows={3}
+                      onChange={(v) => setEditForm({ ...editForm, avatarSvg: v })}
+                      providerName={p.name}
                     />
                   </div>
                   <div>

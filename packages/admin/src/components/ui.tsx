@@ -187,12 +187,18 @@ export function Card({ title, children, className = '' }: {
 
 export function Toggle({ checked, onChange, disabled }: {
   checked: boolean
-  onChange: () => void
+  onChange: (checked: boolean) => void
   disabled?: boolean
 }) {
   return (
     <label className={`inline-flex items-center ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-      <input type="checkbox" className="sr-only peer" checked={checked} onChange={disabled ? undefined : onChange} disabled={disabled} />
+      <input
+        type="checkbox"
+        className="sr-only peer"
+        checked={checked}
+        onChange={disabled ? undefined : (e) => onChange(e.target.checked)}
+        disabled={disabled}
+      />
       <div className="relative w-9 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
     </label>
   )

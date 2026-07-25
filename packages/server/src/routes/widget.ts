@@ -211,29 +211,51 @@ router.get('/:domain/comments', async (c) => {
     .where(eq(providers.siteId, site.id))
     .orderBy(asc(providers.sortWeight), asc(providers.createdAt))
     .all() as any[]
+  let globalDefaults: Record<string, any> = {}
+  try {
+    const sysRow = raw.prepare("SELECT provider_defaults FROM system_config WHERE id = 'global'").get() as { provider_defaults: string | null } | undefined
+    if (sysRow?.provider_defaults) {
+      globalDefaults = JSON.parse(sysRow.provider_defaults)
+    }
+  } catch {}
+
   const providerAvatarMap: Record<string, string> = {}
   const providerOrderMap = new Map<string, number>()
   providerRows.forEach((p, idx) => {
     const weight = p.sortWeight ?? idx
     providerOrderMap.set(p.displayName, weight)
     providerOrderMap.set(p.name, weight)
-    if (p.avatarSvg && p.avatarSvg !== '#empty-content') {
-      const trimmed = p.avatarSvg.trim()
-      if (trimmed.startsWith('<svg')) {
-        providerAvatarMap[p.displayName] = `data:image/svg+xml,${encodeURIComponent(trimmed)}`
+
+    const avatarValue = (p.avatarSvg && p.avatarSvg !== '#empty-content')
+      ? p.avatarSvg
+      : (globalDefaults[p.name]?.avatarSvg || globalDefaults[p.displayName]?.avatarSvg || '')
+
+    if (avatarValue && avatarValue !== '#empty-content') {
+      const trimmed = avatarValue.trim()
+      if (/<svg/i.test(trimmed)) {
+        let svgContent = trimmed
+        if (!svgContent.includes('xmlns=')) {
+          svgContent = svgContent.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"')
+        }
+        const encoded = `data:image/svg+xml,${encodeURIComponent(svgContent)}`
+        providerAvatarMap[p.displayName] = encoded
+        providerAvatarMap[p.name] = encoded
       } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
         providerAvatarMap[p.displayName] = trimmed
+        providerAvatarMap[p.name] = trimmed
       } else {
-        const matched = getProviderAvatar(trimmed)
+        const matched = getProviderAvatar(trimmed) || getProviderAvatar(p.name)
         if (matched) {
           providerAvatarMap[p.displayName] = matched
-        } else {
-          providerAvatarMap[p.displayName] = trimmed
+          providerAvatarMap[p.name] = matched
         }
       }
     } else {
-      const fallback = getProviderAvatar(p.name)
-      if (fallback) providerAvatarMap[p.displayName] = fallback
+      const fallback = getProviderAvatar(p.name) || getProviderAvatar(p.displayName)
+      if (fallback) {
+        providerAvatarMap[p.displayName] = fallback
+        providerAvatarMap[p.name] = fallback
+      }
     }
   })
 

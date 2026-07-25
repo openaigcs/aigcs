@@ -353,6 +353,13 @@ export const STYLES = `:host {
   object-fit: cover;
 }
 
+/* Dark mode contrast for monochrome provider icons */
+.aigcs-theme-dark .aigcs-comment-avatar img,
+[data-theme="dark"] .aigcs-comment-avatar img,
+.dark .aigcs-comment-avatar img {
+  filter: invert(1);
+}
+
 .aigcs-comment-reply .aigcs-comment-avatar {
   width: 32px;
   height: 32px;

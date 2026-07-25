@@ -144,7 +144,7 @@ export const Route = createRoute({
                 <th className="pb-3 pr-4 w-full">{t('providersPage.displayName')}</th>
                 <th className="pb-3 pr-4 whitespace-nowrap">{t('providersPage.type')}</th>
                 <th className="pb-3 pr-4 whitespace-nowrap">{t('providersPage.status')}</th>
-                <th className="pb-3 text-right whitespace-nowrap">{t('providersPage.actions')}</th>
+                <th className="pb-3 text-right pr-2 whitespace-nowrap">{t('providersPage.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -176,8 +176,8 @@ export const Route = createRoute({
                           <Badge color="gray">{t('providersPage.disabledStatus')}</Badge>
                         )}
                       </td>
-                      <td className="py-3.5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-3">
+                      <td className="py-3.5 text-right pr-2 whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-3 pr-1">
                           <Toggle
                             checked={isEnabled}
                             onChange={(val: boolean) => toggleMutation.mutate({ name: p.name, enabled: val })}

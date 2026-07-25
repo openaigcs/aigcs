@@ -1975,7 +1975,7 @@ router.get('/sites/:siteId/comments/search', async (c) => {
 
   const isSpecificAiProvider = type !== 'all' && type !== 'visitor' && type !== 'fedi' && type !== 'ai'
   if (type === 'all' || type === 'ai' || isSpecificAiProvider) {
-    let sql = "SELECT c.id, c.path, c.author_name as authorName, c.content, c.model, c.provider_name as providerName, c.generated_at as createdAt FROM comments c LEFT JOIN page_cache pc ON c.site_id = pc.site_id AND c.path = pc.path WHERE c.site_id = ?"
+    let sql = "SELECT c.id, c.path, c.author_name as authorName, c.content, c.model, c.provider_name as providerName, c.generated_at as createdAt, pr.avatar_svg as avatarSvg FROM comments c LEFT JOIN page_cache pc ON c.site_id = pc.site_id AND c.path = pc.path LEFT JOIN providers pr ON c.site_id = pr.site_id AND (c.provider_name = pr.name OR c.provider_name = pr.display_name) WHERE c.site_id = ?"
     const params: any[] = [siteId]
     if (isSpecificAiProvider) {
       sql += ' AND c.provider_name = ?'

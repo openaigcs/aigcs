@@ -871,13 +871,13 @@ function ProvidersTab({ siteId }: { siteId: string }) {
             </SecondaryButton>
           )}
           <SecondaryButton onClick={() => { setShowAddForm(!showAddForm); setEditingId(null); setShowReorderModal(false) }}>
-            {showAddForm ? t('common.cancel') : t('sites.addProvider')}
+            {t('sites.addProvider')}
           </SecondaryButton>
         </div>
       </div>
 
       {showAddForm && (
-        <form onSubmit={(e) => { e.preventDefault(); createMutation.mutate(addForm) }} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4 space-y-3">
+        <form onSubmit={(e) => { e.preventDefault(); createMutation.mutate(addForm) }} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4 space-y-4">
           <div className="mb-3">
             <label className="block text-sm font-medium mb-1 dark:text-gray-300">选择要添加的 AI 提供商</label>
             <p className="text-xs text-gray-500 mb-2 font-normal">点击选择提供商（若已在全局预设中配置 API Key，将自动拉取继承）</p>
@@ -899,6 +899,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                         model: p.defaultModel || '',
                         apiKey: def?.apiKey || '',
                         avatarSvg: def?.avatarSvg || '',
+                        sortWeight: (providers?.length || 0) * 10,
                       })
                     }}
                     className={`cursor-pointer px-3 py-1.5 rounded-lg text-sm border flex items-center gap-1.5 transition-colors ${
@@ -923,23 +924,64 @@ function ProvidersTab({ siteId }: { siteId: string }) {
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={addForm.showOnFrontend} onChange={(e) => setAddForm({ ...addForm, showOnFrontend: e.target.checked })} /> {t('sites.showOnFrontend')}</label>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.displayName')}</label>
-              <Input value={addForm.displayName || ''} onChange={(v) => setAddForm({ ...addForm, displayName: v })} placeholder="e.g. OpenAI" />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.displayName')}</label>
+                <Input value={addForm.displayName || ''} onChange={(v) => setAddForm({ ...addForm, displayName: v })} placeholder="e.g. OpenAI" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.model')}</label>
+                <Input value={addForm.model || ''} onChange={(v) => setAddForm({ ...addForm, model: v })} placeholder="e.g. gpt-4o-mini" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.modelDisplayName')}</label>
+                <Input value={addForm.modelDisplayName || ''} onChange={(v) => setAddForm({ ...addForm, modelDisplayName: v })} placeholder={t('sites.modelDisplayNamePlaceholder')} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.sortWeight')}</label>
+                <Input type="number" value={addForm.sortWeight ?? 0} onChange={(v) => setAddForm({ ...addForm, sortWeight: Number(v) })} />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.model')}</label>
-              <Input value={addForm.model || ''} onChange={(v) => setAddForm({ ...addForm, model: v })} placeholder="e.g. gpt-4o-mini" />
-            </div>
+
             <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.apiEndpoint')}</label>
-              <Input value={addForm.apiEndpoint || ''} onChange={(v) => setAddForm({ ...addForm, apiEndpoint: v })} placeholder="留空将自动复用全局预设配置" />
+              <Input value={addForm.apiEndpoint || ''} onChange={(v) => setAddForm({ ...addForm, apiEndpoint: v })} placeholder={t('sites.apiEndpointPlaceholder')} className="font-mono" />
             </div>
+
             <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.apiKey')}</label>
-              <Input type="password" value={addForm.apiKey || ''} onChange={(v) => setAddForm({ ...addForm, apiKey: v })} placeholder="留空将自动复用全局预设配置" />
+              <Input
+                type="password"
+                value={addForm.apiKey || ''}
+                onChange={(v) => setAddForm({ ...addForm, apiKey: v })}
+                placeholder={t('sites.apiKeyPlaceholder')}
+                className="font-mono"
+              />
             </div>
+
+            {(['gemini', 'grok', 'claude', 'ollama'].includes(addForm.name) || !['openai', 'deepseek', 'xiaomi', 'doubao', 'hunyuan', 'qwen', 'glm', 'minimax', 'kimi'].includes(addForm.name)) && (
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.providerType')}</label>
+                <Select
+                  value={addForm.providerType || (addForm.name === 'ollama' ? 'ollama' : 'native')}
+                  onChange={(v) => setAddForm({ ...addForm, providerType: v })}
+                >
+                  <option value={addForm.name === 'ollama' ? 'ollama' : 'native'}>
+                    {addForm.name === 'ollama' ? 'Ollama 本地协议' : 'Native 官方原生协议'}
+                  </option>
+                  <option value="openai-compatible">OpenAI 兼容协议 (openai-compatible)</option>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <AvatarInput
+              value={addForm.avatarSvg || ''}
+              onChange={(v) => setAddForm({ ...addForm, avatarSvg: v })}
+              providerName={addForm.name}
+            />
           </div>
 
           <div>
@@ -969,7 +1011,10 @@ function ProvidersTab({ siteId }: { siteId: string }) {
           {createMutation.isError && (
             <p className="text-sm text-red-500 mb-1">{(createMutation.error as any)?.message || '添加失败'}</p>
           )}
-          <PrimaryButton type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? t('common.loading') : t('common.add')}</PrimaryButton>
+          <div className="flex gap-2 pt-1">
+            <PrimaryButton type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? t('common.loading') : t('common.add')}</PrimaryButton>
+            <SecondaryButton onClick={() => setShowAddForm(false)}>{t('common.cancel')}</SecondaryButton>
+          </div>
         </form>
       )}
 
@@ -1093,19 +1138,24 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="flex items-center gap-3 shrink-0 whitespace-nowrap">
+                      <div className="flex items-center gap-2 font-medium dark:text-white text-base">
                         <ProviderIcon name={p.name} size={24} avatarSvg={p.avatarSvg} />
-                        <span className="font-medium dark:text-white">{String(t(`providerNames.${p.name}`, { defaultValue: p.displayName || p.name }))}</span>
-                        <span className="text-xs text-gray-400">{p.name}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded ${p.enabled ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400'}`}>
+                        <span>
+                          {p.displayName && p.displayName !== p.name ? `${p.name}（${p.displayName}）` : p.name}
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded font-normal ${p.enabled ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
                           {p.enabled ? t('sites.enabled') : t('sites.disabled')}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        {p.providerType} &middot; {p.model || t('sites.noModel')}
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 pl-[32px]">
+                        {p.model
+                          ? p.modelDisplayName && p.modelDisplayName !== p.model
+                            ? `${p.model}（${p.modelDisplayName}）`
+                            : p.model
+                          : t('sites.noModel')}
                       </p>
                       {deleteCommentsResult && deleteCommentsResult.id === p.id && (
-                        <p className="text-green-600 text-sm mt-1">
+                        <p className="text-green-600 text-sm mt-1 pl-[32px]">
                           {t('sites.deleteCommentsSuccess', { count: deleteCommentsResult.count })}
                         </p>
                       )}
@@ -1549,6 +1599,23 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
     enabled: siteId.length > 0,
   })
 
+  const { data: providerDefaults } = useQuery({
+    queryKey: ['provider-defaults'],
+    queryFn: () => api<Record<string, any>>('/api/admin/providers/defaults'),
+  })
+
+  const getAiAvatarSvg = (c: any) => {
+    if (c?.avatarSvg) return c.avatarSvg
+    const pName = c?.providerName || ''
+    if (!pName) return undefined
+    const siteProv = (siteProviders || []).find(
+      (p: any) => p.name === pName || p.displayName === pName || p.id === pName
+    )
+    if (siteProv?.avatarSvg) return siteProv.avatarSvg
+    if (providerDefaults?.[pName]?.avatarSvg) return providerDefaults[pName].avatarSvg
+    return undefined
+  }
+
   const [confirmDeleteAllByProvider, setConfirmDeleteAllByProvider] = useState(false)
   const [deleteAllCommentsResult, setDeleteAllCommentsResult] = useState<number | null>(null)
 
@@ -1699,7 +1766,7 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
                     ) : c.type === 'visitor' ? (
                       <img src={gravatarSrc(c.avatarHash)} alt="" className="w-7 h-7 rounded-full shrink-0" loading="lazy" onError={(e: any) => { e.target.style.display = 'none' }} />
                     ) : (
-                      <span className="w-7 h-7 rounded-full shrink-0 overflow-hidden"><ProviderIcon name={c.providerName || ''} size={28} /></span>
+                      <span className="w-7 h-7 rounded-full shrink-0 overflow-hidden"><ProviderIcon name={c.providerName || ''} avatarSvg={getAiAvatarSvg(c)} size={28} /></span>
                     )}
                     <div className="min-w-0">
                       <div className="text-xs font-medium dark:text-gray-200 truncate">{c.authorName}</div>

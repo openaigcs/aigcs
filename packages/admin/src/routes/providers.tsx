@@ -140,11 +140,11 @@ export const Route = createRoute({
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700 text-sm text-gray-500">
                 <th className="pb-3 pr-4 w-12">#</th>
-                <th className="pb-3 pr-4 w-44">{t('providersPage.name')}</th>
-                <th className="pb-3 pr-4 w-60">{t('providersPage.displayName')}</th>
-                <th className="pb-3 pr-4 w-36">{t('providersPage.type')}</th>
-                <th className="pb-3 pr-4 w-32">{t('providersPage.status')}</th>
-                <th className="pb-3 pr-4">{t('providersPage.actions')}</th>
+                <th className="pb-3 pr-4 whitespace-nowrap">{t('providersPage.name')}</th>
+                <th className="pb-3 pr-4 w-full">{t('providersPage.displayName')}</th>
+                <th className="pb-3 pr-4 whitespace-nowrap">{t('providersPage.type')}</th>
+                <th className="pb-3 pr-4 whitespace-nowrap">{t('providersPage.status')}</th>
+                <th className="pb-3 text-right whitespace-nowrap">{t('providersPage.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -156,7 +156,7 @@ export const Route = createRoute({
                   <Fragment key={p.name}>
                     <tr className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
                       <td className="py-3.5 pr-4 text-gray-400 text-sm">{i + 1}</td>
-                      <td className="py-3.5 pr-4 font-mono text-sm dark:text-gray-300">{p.name}</td>
+                      <td className="py-3.5 pr-4 font-mono text-sm dark:text-gray-300 whitespace-nowrap">{p.name}</td>
                       <td className="py-3.5 pr-4 font-medium dark:text-gray-200">
                         <div className="flex items-center gap-2">
                           <ProviderIcon name={p.name} size={22} avatarSvg={defaults?.[p.name]?.avatarSvg} />
@@ -164,36 +164,38 @@ export const Route = createRoute({
                           {p.isCustom && <Badge color="orange">{t('providersPage.custom')}</Badge>}
                         </div>
                       </td>
-                      <td className="py-3.5 pr-4">
+                      <td className="py-3.5 pr-4 whitespace-nowrap">
                         <Badge color={p.type === 'native' ? 'purple' : p.type === 'ollama' ? 'orange' : 'blue'}>
                           {p.type}
                         </Badge>
                       </td>
-                      <td className="py-3.5 pr-4">
+                      <td className="py-3.5 pr-4 whitespace-nowrap">
                         {isEnabled ? (
                           <Badge color="green">{t('providersPage.enabledStatus')}</Badge>
                         ) : (
                           <Badge color="gray">{t('providersPage.disabledStatus')}</Badge>
                         )}
                       </td>
-                      <td className="py-3.5 pr-4 flex items-center gap-3">
-                        <Toggle
-                          checked={isEnabled}
-                          onChange={(val: boolean) => toggleMutation.mutate({ name: p.name, enabled: val })}
-                          disabled={toggleMutation.isPending}
-                        />
-                        <SecondaryButton
-                          onClick={() => startEdit(p.name)}
-                        >
-                          {t('providersPage.editAvatar')}
-                        </SecondaryButton>
-                        {p.isCustom && (
-                          <DangerButton
-                            onClick={() => { if (confirm(t('common.delete') + '?')) deleteMutation.mutate(p.name) }}
+                      <td className="py-3.5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-3">
+                          <Toggle
+                            checked={isEnabled}
+                            onChange={(val: boolean) => toggleMutation.mutate({ name: p.name, enabled: val })}
+                            disabled={toggleMutation.isPending}
+                          />
+                          <SecondaryButton
+                            onClick={() => startEdit(p.name)}
                           >
-                            {t('providersPage.delete')}
-                          </DangerButton>
-                        )}
+                            {t('providersPage.editAvatar')}
+                          </SecondaryButton>
+                          {p.isCustom && (
+                            <DangerButton
+                              onClick={() => { if (confirm(t('common.delete') + '?')) deleteMutation.mutate(p.name) }}
+                            >
+                              {t('providersPage.delete')}
+                            </DangerButton>
+                          )}
+                        </div>
                       </td>
                     </tr>
                     {isEditing && (

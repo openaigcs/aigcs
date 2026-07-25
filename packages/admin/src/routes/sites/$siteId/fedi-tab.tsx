@@ -603,7 +603,7 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
                     <th className="pb-2 pr-3 w-[20%]">{t('sites.rssTitle')}</th>
                     <th className="pb-2 pr-3 w-[20%]">{t('sites.rssPath')}</th>
                     <th className="pb-2 pr-3 w-[42%]">{t('fedi.bindingInfo')}</th>
-                    <th className="pb-2 w-[18%]">{t('sites.actions')}</th>
+                    <th className="pb-2 text-right w-[18%]">{t('sites.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -631,17 +631,17 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
                               <Input value={bindInputs[entry.path] || ''} onChange={(v: string) => setBindInputs(prev => ({ ...prev, [entry.path]: v }))} placeholder="https://实例/@作者/帖子ID" className="w-full" />
                             )}
                           </td>
-                          <td className="py-2 whitespace-nowrap">
-                            <div className="flex gap-1">
+                          <td className="py-2 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
                               {binding ? (
                                 <>
                                   <SecondaryButton onClick={async () => { await refreshBinding.mutateAsync(binding.id) }} disabled={refreshBinding.isPending}>{t('common.refresh')}</SecondaryButton>
                                   <SecondaryButton onClick={async () => { await bindingComments.mutateAsync(binding.id); setViewComments(entry.path) }}>{t('common.view')}</SecondaryButton>
                                   {confirmDeleteBinding === binding.id ? (
-                                    <div className="flex items-center gap-1">
+                                    <>
                                       <DangerButton onClick={() => { deleteBinding.mutate(binding.id); setConfirmDeleteBinding(null) }} disabled={deleteBinding.isPending}>{t('common.confirm')}</DangerButton>
                                       <SecondaryButton onClick={() => setConfirmDeleteBinding(null)}>{t('common.cancel')}</SecondaryButton>
-                                    </div>
+                                    </>
                                   ) : (
                                     <DangerButton onClick={() => setConfirmDeleteBinding(binding.id)}>{t('common.delete')}</DangerButton>
                                   )}

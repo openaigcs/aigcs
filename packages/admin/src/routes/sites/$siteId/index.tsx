@@ -1682,11 +1682,11 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
         <table className="w-full text-left text-sm table-fixed">
           <thead>
             <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500">
-              <th className="pb-2 pr-3 w-[20%]">{t('sites.author')}</th>
-              <th className="pb-2 pr-3 w-[20%]">{t('sites.rssPath')}</th>
-              <th className="pb-2 pr-3 w-[12%]">{t('cache.generated')}</th>
-              <th className="pb-2 pr-3">{t('sites.content')}</th>
-              <th className="pb-2 w-32">{t('sites.actions')}</th>
+              <th className="pb-2 pr-3 w-[15%]">{t('sites.author')}</th>
+              <th className="pb-2 pr-3 w-[17%]">{t('sites.rssPath')}</th>
+              <th className="pb-2 pr-3 w-[15%]">{t('cache.generated')}</th>
+              <th className="pb-2 pr-3 w-[39%]">{t('sites.content')}</th>
+              <th className="pb-2 text-right w-[14%] min-w-[130px]">{t('sites.actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -1716,22 +1716,26 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
                     ? <p className="text-xs text-gray-700 dark:text-gray-300 break-words line-clamp-2" dangerouslySetInnerHTML={{ __html: sanitizeFediHtml(c.content) }} />
                     : <div className="text-xs text-gray-700 dark:text-gray-300 break-words line-clamp-2 prose prose-xs max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(c.content) }} />
                 }</td>
-                <td className="py-1.5 whitespace-nowrap">
+                <td className="py-1.5 text-right whitespace-nowrap">
                   {c.hidden ? (
-                    <button className="text-xs text-blue-500 hover:text-blue-700 cursor-pointer bg-transparent border-none p-0 font-inherit" onClick={() => { unhideFediMutation.mutate(c.id); setHiddenFediId(null) }}>{t('common.restore')}</button>
+                    <SecondaryButton onClick={() => { unhideFediMutation.mutate(c.id); setHiddenFediId(null) }} className="!px-2.5 !py-1 !text-xs">{t('common.restore')}</SecondaryButton>
                   ) : confirmDelete === c.type + '-' + c.id ? (
-                    <div className="flex items-center gap-1">
-                      <DangerButton onClick={() => {
+                    <div className="flex items-center justify-end gap-1.5">
+                      <DangerButton className="!px-2.5 !py-1 !text-xs" onClick={() => {
                         if (c.source === 'fedi') hideFediMutation.mutate(c.id)
                         else if (c.type === 'ai') deleteAiMutation.mutate(c.id)
                         else deleteVisitorMutation.mutate(c.id)
                       }} disabled={deleteAiMutation.isPending || deleteVisitorMutation.isPending || hideFediMutation.isPending}>{t('common.confirm')}</DangerButton>
-                      <SecondaryButton onClick={() => setConfirmDelete(null)}>{t('common.cancel')}</SecondaryButton>
+                      <SecondaryButton className="!px-2.5 !py-1 !text-xs" onClick={() => setConfirmDelete(null)}>{t('common.cancel')}</SecondaryButton>
                     </div>
-                  ) : c.source === 'fedi' ? (
-                    <button type="button" onClick={() => setConfirmDelete(c.type + '-' + c.id)} className="cursor-pointer whitespace-nowrap bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium">{t('common.hide')}</button>
                   ) : (
-                    <DangerButton onClick={() => setConfirmDelete(c.type + '-' + c.id)}>{t('common.delete')}</DangerButton>
+                    <div className="flex items-center justify-end gap-1.5">
+                      {c.source === 'fedi' ? (
+                        <SecondaryButton onClick={() => setConfirmDelete(c.type + '-' + c.id)} className="!px-2.5 !py-1 !text-xs !bg-orange-500 hover:!bg-orange-600 !text-white">{t('common.hide')}</SecondaryButton>
+                      ) : (
+                        <DangerButton onClick={() => setConfirmDelete(c.type + '-' + c.id)} className="!px-2.5 !py-1 !text-xs">{t('common.delete')}</DangerButton>
+                      )}
+                    </div>
                   )}
                 </td>
               </tr>

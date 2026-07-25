@@ -1174,8 +1174,8 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                         setTestResult(null)
                         setTestingId(p.id)
                         testMutation.mutate(p.id, {
-                          onSuccess: () => { setTestResult({ id: p.id, success: true, message: '响应测试正常！已成功连通此 AI 提供商。' }); setTimeout(() => setTestResult(r => r?.id === p.id ? null : r), 4000) },
-                          onError: (err: Error) => { setTestResult({ id: p.id, success: false, message: err.message }); setTimeout(() => setTestResult(r => r?.id === p.id ? null : r), 8000) },
+                          onSuccess: () => { setTestResult({ id: p.id, success: true, message: '响应测试正常！已成功连通此 AI 提供商。' }) },
+                          onError: (err: Error) => { setTestResult({ id: p.id, success: false, message: err.message }) },
                           onSettled: () => setTestingId(null),
                         })
                       }} disabled={testingId !== null && testingId !== p.id}>

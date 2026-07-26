@@ -3,7 +3,7 @@ import { Route as rootRoute } from './__root'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PrimaryButton, SecondaryButton, DangerButton, Input, Card, Badge, Toggle } from '../components/ui'
+import { PrimaryButton, SecondaryButton, Input, Card, Badge, Toggle } from '../components/ui'
 import { ProviderIcon } from '../components/provider-icon'
 import { AvatarInput } from '../components/avatar-input'
 
@@ -174,7 +174,7 @@ export const Route = createRoute({
           </Card>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+        <div className="space-y-3.5 w-full">
           {allProviders.map((p) => {
             const cfg = defaults?.[p.name]
             const isEnabled = cfg?.enabled ?? false
@@ -182,66 +182,67 @@ export const Route = createRoute({
             return (
               <div
                 key={p.name}
-                className={`bg-white dark:bg-gray-800 rounded-xl border transition-all duration-200 p-3.5 flex flex-col justify-between ${
+                className={`bg-white dark:bg-gray-800 rounded-xl border transition-all duration-200 p-4 shadow-sm ${
                   isEnabled
-                    ? 'border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md'
-                    : 'border-gray-200/60 dark:border-gray-700/60 opacity-80'
+                    ? 'border-gray-200 dark:border-gray-700 hover:shadow-md'
+                    : 'border-gray-200/60 dark:border-gray-700/60 opacity-85'
                 }`}
               >
-                <div>
-                  <div className="flex items-start justify-between gap-2.5 mb-2.5">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="shrink-0 p-1.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-700">
-                        <ProviderIcon name={p.name} size={24} avatarSvg={defaults?.[p.name]?.avatarSvg} />
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  {/* Left: Icon, Name, Identifier, Badges */}
+                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                    <div className="shrink-0 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-700 flex items-center justify-center">
+                      <ProviderIcon name={p.name} size={28} avatarSvg={defaults?.[p.name]?.avatarSvg} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold text-base dark:text-white truncate">
+                          {String(t(`providerNames.${p.name}`, { defaultValue: p.displayName || p.name }))}
+                        </h3>
+                        <span className="px-2 py-0.5 font-mono text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/70 rounded-md">
+                          {p.name}
+                        </span>
+                        {p.isCustom && <Badge color="orange">{t('providersPage.custom')}</Badge>}
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h3 className="font-semibold text-sm dark:text-white truncate">
-                            {String(t(`providerNames.${p.name}`, { defaultValue: p.displayName || p.name }))}
-                          </h3>
-                          {p.isCustom && <Badge color="orange">{t('providersPage.custom')}</Badge>}
-                        </div>
-                        <div className="mt-0.5">
-                          <span className="inline-block px-1.5 py-0.2 font-mono text-[11px] text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/60 rounded">
-                            {p.name}
-                          </span>
-                        </div>
+                      <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                        <Badge color={p.type === 'native' ? 'purple' : p.type === 'ollama' ? 'orange' : 'blue'}>
+                          {p.type}
+                        </Badge>
+                        {isEnabled ? (
+                          <Badge color="green">{t('providersPage.enabledStatus')}</Badge>
+                        ) : (
+                          <Badge color="gray">{t('providersPage.disabledStatus')}</Badge>
+                        )}
                       </div>
                     </div>
-                    <div className="shrink-0">
+                  </div>
+
+                  {/* Right: Toggle Switch & Actions */}
+                  <div className="flex items-center gap-4 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                        {isEnabled ? t('providersPage.enabledStatus') : t('providersPage.disabledStatus')}
+                      </span>
                       <Toggle
                         checked={isEnabled}
                         onChange={(val: boolean) => toggleMutation.mutate({ name: p.name, enabled: val })}
                         disabled={toggleMutation.isPending}
                       />
                     </div>
-                  </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700/60 text-xs">
-                    <div className="flex items-center gap-2">
-                      <Badge color={p.type === 'native' ? 'purple' : p.type === 'ollama' ? 'orange' : 'blue'}>
-                        {p.type}
-                      </Badge>
-                      {isEnabled ? (
-                        <Badge color="green">{t('providersPage.enabledStatus')}</Badge>
-                      ) : (
-                        <Badge color="gray">{t('providersPage.disabledStatus')}</Badge>
-                      )}
-                    </div>
+                    <div className="h-4 w-[1px] bg-gray-200 dark:bg-gray-700 hidden sm:block" />
 
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
+                      <SecondaryButton
                         onClick={() => startEdit(p.name)}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium cursor-pointer"
                       >
                         {isEditing ? t('providersPage.cancel') : t('providersPage.editAvatar')}
-                      </button>
+                      </SecondaryButton>
                       {p.isCustom && (
                         <button
                           type="button"
                           onClick={() => { if (confirm(t('common.delete') + '?')) deleteMutation.mutate(p.name) }}
-                          className="text-xs text-red-600 dark:text-red-400 hover:underline font-medium cursor-pointer"
+                          className="px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors font-medium cursor-pointer"
                         >
                           {t('providersPage.delete')}
                         </button>
@@ -251,31 +252,33 @@ export const Route = createRoute({
                 </div>
 
                 {isEditing && (
-                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3 bg-gray-50/50 dark:bg-gray-900/40 p-3 rounded-lg">
-                    <h4 className="text-xs font-semibold dark:text-gray-300">
+                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4 bg-gray-50/50 dark:bg-gray-900/40 p-4 rounded-xl">
+                    <h4 className="text-sm font-semibold dark:text-gray-200">
                       {t('providersPage.settingsTitle')}: {p.displayName}
                     </h4>
-                    <div>
-                      <label className="block text-xs font-medium mb-1 dark:text-gray-300">
-                        {t('providersPage.displayName')}
-                      </label>
-                      <Input value={editDisplay} onChange={setEditDisplay} />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium mb-1 dark:text-gray-300">
+                          {t('providersPage.displayName')}
+                        </label>
+                        <Input value={editDisplay} onChange={setEditDisplay} />
+                      </div>
+                      <div>
+                        <AvatarInput
+                          value={editAvatarSvg}
+                          onChange={setEditAvatarSvg}
+                          providerName={p.name}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <AvatarInput
-                        value={editAvatarSvg}
-                        onChange={setEditAvatarSvg}
-                        providerName={p.name}
-                      />
-                    </div>
-                    <div className="flex gap-2 pt-1">
+                    <div className="flex gap-2 justify-end pt-2">
+                      <SecondaryButton onClick={() => setExpanded(null)}>{t('providersPage.cancel')}</SecondaryButton>
                       <PrimaryButton
                         onClick={() => toggleMutation.mutate({ name: expanded, displayName: editDisplay, avatarSvg: editAvatarSvg })}
                         disabled={toggleMutation.isPending}
                       >
                         {toggleMutation.isPending ? t('common.loading') : t('providersPage.save')}
                       </PrimaryButton>
-                      <SecondaryButton onClick={() => setExpanded(null)}>{t('providersPage.cancel')}</SecondaryButton>
                     </div>
                   </div>
                 )}

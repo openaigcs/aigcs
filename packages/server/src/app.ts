@@ -60,6 +60,17 @@ export async function createApp() {
   const app = new Hono()
 
   app.use('*', async (c, next) => {
+    const rawIp =
+      c.req.header('cf-connecting-ip') ||
+      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
+      c.req.header('x-real-ip') ||
+      c.req.header('true-client-ip') ||
+      (c.env as any)?.incoming?.socket?.remoteAddress ||
+      (c.env as any)?.remoteAddr ||
+      '127.0.0.1'
+    const cleanedIp = String(rawIp).replace(/^::ffff:/, '')
+    c.set('clientIp', cleanedIp === '::1' ? '127.0.0.1' : cleanedIp)
+
     if (c.req.path === '/api/health') return next()
     return logger()(c, next)
   })

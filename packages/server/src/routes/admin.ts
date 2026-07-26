@@ -64,24 +64,57 @@ router.put('/sites/:siteId/providers/reorder', zValidator('json', z.object({
 function getClientIp(c: any): string {
   if (!c || !c.req) return '127.0.0.1'
   try {
-    const cfIp = c.req.header('cf-connecting-ip')
+    const savedIp = typeof c.get === 'function' ? c.get('clientIp') : null
+    if (savedIp && savedIp !== '127.0.0.1') return savedIp
+
+    const headers = typeof c.req.header === 'function' ? c.req.header() : {}
+    const cfIp = headers['cf-connecting-ip'] || c.req.header('cf-connecting-ip')
     if (cfIp && cfIp.trim()) return cfIp.trim()
-    const xForwardedFor = c.req.header('x-forwarded-for')
+
+    const xForwardedFor = headers['x-forwarded-for'] || c.req.header('x-forwarded-for')
     if (xForwardedFor && xForwardedFor.trim()) {
       const firstIp = xForwardedFor.split(',')[0].trim()
-      if (firstIp) return firstIp
+      if (firstIp) return firstIp.replace(/^::ffff:/, '')
     }
-    const xRealIp = c.req.header('x-real-ip')
-    if (xRealIp && xRealIp.trim()) return xRealIp.trim()
+
+    const xRealIp = headers['x-real-ip'] || c.req.header('x-real-ip')
+    if (xRealIp && xRealIp.trim()) return xRealIp.trim().replace(/^::ffff:/, '')
+
+    const trueClientIp = headers['true-client-ip'] || c.req.header('true-client-ip')
+    if (trueClientIp && trueClientIp.trim()) return trueClientIp.trim()
+
+    const rawConn = (c.env as any)?.incoming?.socket?.remoteAddress || (c.env as any)?.remoteAddr
+    if (rawConn) {
+      const cleaned = String(rawConn).replace(/^::ffff:/, '')
+      if (cleaned === '::1') return '127.0.0.1'
+      return cleaned
+    }
   } catch {}
   return '127.0.0.1'
 }
 
-function insertAuditLog(db: any, values: Record<string, any>, c?: any) {
-  const ipAddress = values.ipAddress || values.ip_address || values.ip || (c ? getClientIp(c) : '127.0.0.1')
-  db.insert(auditLog).values({
+function insertAuditLog(arg1: any, arg2: any, arg3?: any) {
+  let c: any = null
+  let db: any = null
+  let values: Record<string, any> = {}
+
+  if (arg1 && typeof arg1 === 'object' && ('req' in arg1 || typeof arg1.get === 'function')) {
+    c = arg1
+    db = arg2
+    values = arg3 || {}
+  } else {
+    db = arg1
+    values = arg2 || {}
+    c = arg3
+  }
+
+  const clientIp = (c ? getClientIp(c) : null) || values.ipAddress || values.ip_address || values.ip || '127.0.0.1'
+
+  const realDb = db || getDb()
+  realDb.insert(auditLog).values({
+    id: values.id || nanoid(),
     ...values,
-    ipAddress,
+    ipAddress: clientIp,
     createdAt: values.createdAt || new Date().toISOString(),
   }).run()
 }
@@ -2379,6 +2412,7 @@ router.get('/users', requireRole('admin'), async (c) => {
     username: users.username,
     displayName: users.displayName,
     role: users.role,
+    avatarUrl: users.avatar,
     emailVerifiedAt: users.emailVerifiedAt,
     totpEnabled: users.totpEnabled,
     createdAt: users.createdAt,
@@ -2394,6 +2428,7 @@ router.get('/users', requireRole('admin'), async (c) => {
       username: users.username,
       displayName: users.displayName,
       role: users.role,
+      avatarUrl: users.avatar,
       emailVerifiedAt: users.emailVerifiedAt,
       totpEnabled: users.totpEnabled,
       createdAt: users.createdAt,

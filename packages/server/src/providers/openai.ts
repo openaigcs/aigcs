@@ -15,7 +15,7 @@ export const openaiProvider: AIProviderInterface = {
     messages.push({ role: 'user', content: `Title: ${pageTitle}\n\nContent:\n${pageContent}` })
 
     const body: Record<string, unknown> = {
-      model: model || 'gpt-4o-mini',
+      model: model || 'gpt-5.5',
       messages,
       max_tokens: extraParams?.max_tokens || 300,
       temperature: extraParams?.temperature ?? 0.7,
@@ -74,7 +74,8 @@ export function createOpenAICompatibleProvider(
     async generate(input: GenerateInput): Promise<GenerateResult> {
       const { model, apiKey, apiEndpoint, pageTitle, pageContent, systemPrompt, extraParams } = input
 
-      const baseUrl = apiEndpoint || 'https://api.openai.com/v1'
+      const rawBase = (apiEndpoint || 'https://api.openai.com/v1').replace(/\/$/, '')
+      const url = rawBase.endsWith('/chat/completions') ? rawBase : `${rawBase}/chat/completions`
       const messages: Array<Record<string, string>> = []
       if (systemPrompt) {
         messages.push({ role: 'system', content: systemPrompt })
@@ -82,13 +83,13 @@ export function createOpenAICompatibleProvider(
       messages.push({ role: 'user', content: `Title: ${pageTitle}\n\nContent:\n${pageContent}` })
 
       const body: Record<string, unknown> = {
-        model: model || 'gpt-4o-mini',
+        model: model || 'gpt-5.5',
         messages,
       }
       if (extraParams?.max_tokens !== undefined) body.max_tokens = extraParams.max_tokens
       if (extraParams?.temperature !== undefined) body.temperature = extraParams.temperature
 
-      const response = await fetch(`${baseUrl}/chat/completions`, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

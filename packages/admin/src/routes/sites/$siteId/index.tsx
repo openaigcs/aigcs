@@ -710,6 +710,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
     name: '', displayName: '', providerType: 'native', apiKey: '',
     apiEndpoint: '', model: '', enabled: true, showOnFrontend: true,
     sortWeight: 0, promptTemplateId: '', avatarSvg: '', modelDisplayName: '',
+    extraParams: {} as Record<string, any>,
   })
   const { data: providers, isLoading, isError, error } = useQuery({
     queryKey: ['site-providers', siteId],
@@ -853,7 +854,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site-providers', siteId] })
       setShowAddForm(false)
-      setAddForm({ name: '', displayName: '', providerType: 'native', apiKey: '', apiEndpoint: '', model: '', enabled: true, showOnFrontend: true, sortWeight: 0, promptTemplateId: '', avatarSvg: '', modelDisplayName: '' })
+      setAddForm({ name: '', displayName: '', providerType: 'native', apiKey: '', apiEndpoint: '', model: '', enabled: true, showOnFrontend: true, sortWeight: 0, promptTemplateId: '', avatarSvg: '', modelDisplayName: '', extraParams: {} })
     },
   })
 
@@ -960,7 +961,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
               />
             </div>
 
-            {(['gemini', 'grok', 'claude', 'ollama'].includes(addForm.name) || !['openai', 'deepseek', 'xiaomi', 'doubao', 'hunyuan', 'qwen', 'glm', 'minimax', 'kimi', 'wenxin', 'spark', 'kling'].includes(addForm.name)) && (
+            {(['gemini', 'claude', 'ollama'].includes(addForm.name) || !['openai', 'grok', 'deepseek', 'xiaomi', 'doubao', 'hunyuan', 'qwen', 'glm', 'minimax', 'kimi', 'wenxin', 'spark', 'longcat'].includes(addForm.name)) && (
               <div>
                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.providerType')}</label>
                 <Select
@@ -971,6 +972,31 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                     {addForm.name === 'ollama' ? 'Ollama 本地协议' : 'Native 官方原生协议'}
                   </option>
                   <option value="openai-compatible">OpenAI 兼容协议 (openai-compatible)</option>
+                </Select>
+              </div>
+            )}
+            {addForm.name === 'gemini' && (
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Gemini API 格式 / 协议</label>
+                <Select
+                  value={(addForm.extraParams as any)?.apiFormat || 'interactions'}
+                  onChange={(v) => setAddForm({ ...addForm, extraParams: { ...(addForm.extraParams || {}), apiFormat: v } })}
+                >
+                  <option value="interactions">Interactions API (默认 - Gemini 3.5/3.6 最新推荐)</option>
+                  <option value="generateContent">generateContent API (经典原生 API)</option>
+                  <option value="openai">OpenAI 兼容 API (Chat Completions 代理)</option>
+                </Select>
+              </div>
+            )}
+            {addForm.name === 'claude' && (
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Claude API 格式 / 协议</label>
+                <Select
+                  value={(addForm.extraParams as any)?.apiFormat || 'messages'}
+                  onChange={(v) => setAddForm({ ...addForm, extraParams: { ...(addForm.extraParams || {}), apiFormat: v } })}
+                >
+                  <option value="messages">Anthropic Messages API (默认 - 官方原生协议)</option>
+                  <option value="openai">OpenAI 兼容 API (Chat Completions 代理)</option>
                 </Select>
               </div>
             )}
@@ -1081,7 +1107,7 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                       />
                     </div>
 
-                    {(['gemini', 'grok', 'claude', 'ollama'].includes(p.name) || !['openai', 'deepseek', 'xiaomi', 'doubao', 'hunyuan', 'qwen', 'glm', 'minimax', 'kimi', 'wenxin', 'spark', 'kling'].includes(p.name)) && (
+                    {(['gemini', 'claude', 'ollama'].includes(p.name) || !['openai', 'grok', 'deepseek', 'xiaomi', 'doubao', 'hunyuan', 'qwen', 'glm', 'minimax', 'kimi', 'wenxin', 'spark', 'longcat'].includes(p.name)) && (
                       <div>
                         <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('sites.providerType')}</label>
                         <Select
@@ -1092,6 +1118,31 @@ function ProvidersTab({ siteId }: { siteId: string }) {
                             {p.name === 'ollama' ? 'Ollama 本地协议' : 'Native 官方原生协议'}
                           </option>
                           <option value="openai-compatible">OpenAI 兼容协议 (openai-compatible)</option>
+                        </Select>
+                      </div>
+                    )}
+                    {p.name === 'gemini' && (
+                      <div>
+                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">Gemini API 格式 / 协议</label>
+                        <Select
+                          value={(editForm.extraParams as any)?.apiFormat || 'interactions'}
+                          onChange={(v) => setEditForm({ ...editForm, extraParams: { ...(editForm.extraParams || {}), apiFormat: v } })}
+                        >
+                          <option value="interactions">Interactions API (默认 - Gemini 3.5/3.6 最新推荐)</option>
+                          <option value="generateContent">generateContent API (经典原生 API)</option>
+                          <option value="openai">OpenAI 兼容 API (Chat Completions 代理)</option>
+                        </Select>
+                      </div>
+                    )}
+                    {p.name === 'claude' && (
+                      <div>
+                        <label className="block text-sm font-medium mb-1 dark:text-gray-300">Claude API 格式 / 协议</label>
+                        <Select
+                          value={(editForm.extraParams as any)?.apiFormat || 'messages'}
+                          onChange={(v) => setEditForm({ ...editForm, extraParams: { ...(editForm.extraParams || {}), apiFormat: v } })}
+                        >
+                          <option value="messages">Anthropic Messages API (默认 - 官方原生协议)</option>
+                          <option value="openai">OpenAI 兼容 API (Chat Completions 代理)</option>
                         </Select>
                       </div>
                     )}

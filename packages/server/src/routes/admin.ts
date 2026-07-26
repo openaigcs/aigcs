@@ -428,14 +428,13 @@ router.post('/sites/:siteId/providers', zValidator('json', z.object({
     xiaomi: '小米大模型',
     doubao: '豆包',
     hunyuan: '混元',
-    quark: '夸克',
     qwen: '千问',
     glm: '智谱GLM',
     minimax: 'MiniMax',
     kimi: 'Kimi',
     wenxin: '百度文心',
     spark: '讯飞星火',
-    kling: '可灵AI',
+    longcat: '美团龙猫',
     ollama: 'Ollama'
   }
   const defName = builtinDefaults[body.name]
@@ -620,21 +619,21 @@ router.post('/sites/:siteId/providers/:providerId/delete-comments', async (c) =>
 
 router.get('/builtin-providers', async (c) => {
   const providers = [
-    { name: 'gemini', displayName: 'Gemini', type: 'native', endpoint: 'https://generativelanguage.googleapis.com/v1', auth: 'API Key (URL param)', defaultModel: 'gemini-2.5-flash', weight: 10 },
-    { name: 'openai', displayName: 'OpenAI', type: 'native', endpoint: 'https://api.openai.com/v1', auth: 'Bearer Token', defaultModel: 'gpt-4o-mini', weight: 20 },
-    { name: 'claude', displayName: 'Claude', type: 'native', endpoint: 'https://api.anthropic.com/v1', auth: 'x-api-key Header', defaultModel: 'claude-sonnet-4', weight: 30 },
-    { name: 'grok', displayName: 'Grok', type: 'native', endpoint: 'https://api.x.ai/v1', auth: 'Bearer Token', defaultModel: 'grok-2-latest', weight: 40 },
-    { name: 'deepseek', displayName: 'DeepSeek', type: 'openai-compatible', endpoint: 'https://api.deepseek.com', auth: 'Bearer Token', defaultModel: 'deepseek-chat', weight: 50 },
+    { name: 'gemini', displayName: 'Gemini', type: 'native', endpoint: 'https://generativelanguage.googleapis.com/v1beta', auth: 'API Key (URL param)', defaultModel: 'gemini-3.6-flash', weight: 10 },
+    { name: 'openai', displayName: 'OpenAI', type: 'native', endpoint: 'https://api.openai.com/v1', auth: 'Bearer Token', defaultModel: 'gpt-5.5', weight: 20 },
+    { name: 'claude', displayName: 'Claude', type: 'native', endpoint: 'https://api.anthropic.com/v1', auth: 'x-api-key Header', defaultModel: 'claude-sonnet-5', weight: 30 },
+    { name: 'grok', displayName: 'Grok', type: 'openai-compatible', endpoint: 'https://api.x.ai/v1', auth: 'Bearer Token', defaultModel: 'grok-4.5', weight: 40 },
+    { name: 'deepseek', displayName: 'DeepSeek', type: 'openai-compatible', endpoint: 'https://api.deepseek.com', auth: 'Bearer Token', defaultModel: 'deepseek-v4-flash', weight: 50 },
     { name: 'xiaomi', displayName: '小米大模型', type: 'openai-compatible', endpoint: 'https://api.xiaomimimo.com/v1', auth: 'Bearer Token', defaultModel: 'mimo-v2.5', weight: 55 },
-    { name: 'doubao', displayName: '豆包', type: 'openai-compatible', endpoint: 'https://ark.cn-beijing.volces.com/api/v3', auth: 'Bearer Token', defaultModel: 'doubao-1.5-pro', weight: 60 },
-    { name: 'hunyuan', displayName: '混元', type: 'openai-compatible', endpoint: 'https://api.hunyuan.cloud.tencent.com/v1', auth: 'Bearer Token', defaultModel: 'hunyuan-turbo', weight: 70 },
-    { name: 'qwen', displayName: '千问', type: 'openai-compatible', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', auth: 'Bearer Token', defaultModel: 'qwen-turbo', weight: 90 },
-    { name: 'glm', displayName: '智谱GLM', type: 'openai-compatible', endpoint: 'https://open.bigmodel.cn/api/paas/v4', auth: 'Bearer Token', defaultModel: 'glm-4-plus', weight: 100 },
-    { name: 'minimax', displayName: 'MiniMax', type: 'openai-compatible', endpoint: 'https://api.minimax.ai/v1', auth: 'Bearer Token', defaultModel: 'minimax-text-01', weight: 110 },
-    { name: 'kimi', displayName: 'Kimi', type: 'openai-compatible', endpoint: 'https://api.moonshot.cn/v1', auth: 'Bearer Token', defaultModel: 'kimi-latest', weight: 120 },
-    { name: 'wenxin', displayName: '百度文心', type: 'openai-compatible', endpoint: 'https://qianfan.baidubce.com/v2', auth: 'Bearer Token', defaultModel: 'ernie-4.0-turbo-8k', weight: 130 },
-    { name: 'spark', displayName: '讯飞星火', type: 'openai-compatible', endpoint: 'https://spark-api-open.xf-yun.com/v1', auth: 'Bearer Token', defaultModel: 'spark-max', weight: 140 },
-    { name: 'kling', displayName: '可灵AI', type: 'openai-compatible', endpoint: 'https://api.klingai.com/v1', auth: 'Bearer Token', defaultModel: 'kling-v1', weight: 150 },
+    { name: 'doubao', displayName: '豆包', type: 'openai-compatible', endpoint: 'https://ark.cn-beijing.volces.com/api/v3', auth: 'Bearer Token', defaultModel: 'doubao-seed-2.1-pro', weight: 60 },
+    { name: 'hunyuan', displayName: '混元', type: 'openai-compatible', endpoint: 'https://api.hunyuan.cloud.tencent.com/v1', auth: 'Bearer Token', defaultModel: 'hy3', weight: 70 },
+    { name: 'qwen', displayName: '千问', type: 'openai-compatible', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1', auth: 'Bearer Token', defaultModel: 'qwen3.7-max', weight: 90 },
+    { name: 'glm', displayName: '智谱GLM', type: 'openai-compatible', endpoint: 'https://open.bigmodel.cn/api/paas/v4', auth: 'Bearer Token', defaultModel: 'glm-5.2', weight: 100 },
+    { name: 'minimax', displayName: 'MiniMax', type: 'openai-compatible', endpoint: 'https://api.minimax.ai/v1', auth: 'Bearer Token', defaultModel: 'minimax-m3', weight: 110 },
+    { name: 'kimi', displayName: 'Kimi', type: 'openai-compatible', endpoint: 'https://api.moonshot.cn/v1', auth: 'Bearer Token', defaultModel: 'kimi-k3', weight: 120 },
+    { name: 'wenxin', displayName: '百度文心', type: 'openai-compatible', endpoint: 'https://qianfan.baidubce.com/v2', auth: 'Bearer Token', defaultModel: 'ernie-5.1', weight: 130 },
+    { name: 'spark', displayName: '讯飞星火', type: 'openai-compatible', endpoint: 'https://spark-api-open.xf-yun.com/v1', auth: 'Bearer Token', defaultModel: 'spark-x2', weight: 140 },
+    { name: 'longcat', displayName: '美团龙猫', type: 'openai-compatible', endpoint: 'https://api.longcat.meituan.com/v1', auth: 'Bearer Token', defaultModel: 'LongCat-2.0', weight: 150 },
     { name: 'ollama', displayName: 'Ollama', type: 'ollama', endpoint: 'http://localhost:11434/v1', auth: 'None (local)', defaultModel: 'llama3', weight: 999 },
   ]
   return c.json({ code: 0, data: providers })

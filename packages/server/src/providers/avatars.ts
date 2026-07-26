@@ -57,8 +57,9 @@ AVATARS['wenxin'] = svgDataUri(`<svg viewBox="0 0 24 24" xmlns="http://www.w3.or
 // iFlytek Spark
 AVATARS['spark'] = svgDataUri(`<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 1.5L14.8 9.2L22.5 12L14.8 14.8L12 22.5L9.2 14.8L1.5 12L9.2 9.2L12 1.5Z" fill="url(#av-spk)"/><defs><linearGradient id="av-spk" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#007AFF"/><stop offset="100%" stop-color="#FF5E00"/></linearGradient></defs></svg>`)
 
-// Kling AI
-AVATARS['kling'] = svgDataUri(`<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" rx="6" fill="url(#av-klg)"/><path d="M7 6v12l10-6L7 6z" fill="#FFF"/><defs><linearGradient id="av-klg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#FF2D55"/><stop offset="100%" stop-color="#6E3AFF"/></linearGradient></defs></svg>`)
+// Meituan LongCat
+AVATARS['longcat'] = svgDataUri(`<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" rx="6" fill="#FFD100"/><path d="M7 8.5L9.5 12L7 15.5M17 8.5L14.5 12L17 15.5M10.5 14.5Q12 16 13.5 14.5" stroke="#111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`)
+AVATARS['meituan'] = AVATARS['longcat']
 
 export function getProviderAvatar(name: string): string {
   return AVATARS[name.toLowerCase()] || ''

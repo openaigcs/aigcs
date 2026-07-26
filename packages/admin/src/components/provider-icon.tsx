@@ -12,38 +12,9 @@ import MoonshotAvatar from '@lobehub/icons/es/Moonshot/components/Avatar'
 import OllamaAvatar from '@lobehub/icons/es/Ollama/components/Avatar'
 import GrokAvatar from '@lobehub/icons/es/Grok/components/Avatar'
 import XiaomiMiMoAvatar from '@lobehub/icons/es/XiaomiMiMo/components/Avatar'
-
-const WenxinAvatar: FC<{ size?: number }> = ({ size = 20 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="12" cy="12" r="10" fill="#2932E1"/>
-    <path d="M12 5L14.2 9.8L19.5 10.5L15.6 14.2L16.6 19.5L12 17L7.4 19.5L8.4 14.2L4.5 10.5L9.8 9.8Z" fill="#00D2FF"/>
-  </svg>
-)
-
-const SparkAvatar: FC<{ size?: number }> = ({ size = 20 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M12 1.5L14.8 9.2L22.5 12L14.8 14.8L12 22.5L9.2 14.8L1.5 12L9.2 9.2L12 1.5Z" fill="url(#av-spk-adm)"/>
-    <defs>
-      <linearGradient id="av-spk-adm" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#007AFF"/>
-        <stop offset="100%" stopColor="#FF5E00"/>
-      </linearGradient>
-    </defs>
-  </svg>
-)
-
-const KlingAvatar: FC<{ size?: number }> = ({ size = 20 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="24" height="24" rx="6" fill="url(#av-klg-adm)"/>
-    <path d="M7 6v12l10-6L7 6z" fill="#FFF"/>
-    <defs>
-      <linearGradient id="av-klg-adm" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#FF2D55"/>
-        <stop offset="100%" stopColor="#6E3AFF"/>
-      </linearGradient>
-    </defs>
-  </svg>
-)
+import WenxinAvatar from '@lobehub/icons/es/Wenxin/components/Avatar'
+import SparkAvatar from '@lobehub/icons/es/Spark/components/Avatar'
+import LongCatAvatar from '@lobehub/icons/es/LongCat/components/Avatar'
 
 const AVATAR_MAP: Record<string, any> = {
   openai: OpenAIAvatar,
@@ -59,7 +30,8 @@ const AVATAR_MAP: Record<string, any> = {
   kimi: MoonshotAvatar,
   wenxin: WenxinAvatar,
   spark: SparkAvatar,
-  kling: KlingAvatar,
+  longcat: LongCatAvatar,
+  meituan: LongCatAvatar,
   ollama: OllamaAvatar,
   xiaomi: XiaomiMiMoAvatar,
   mimo: XiaomiMiMoAvatar,
@@ -79,59 +51,41 @@ interface ProviderIconProps {
   avatarSvg?: string
 }
 
-export function ProviderIcon({ name, size = 20, avatarSvg }: ProviderIconProps) {
-  const key = name.toLowerCase()
-  const isMono = MONO_PROVIDERS.has(key)
-
-  if (avatarSvg && avatarSvg !== '#empty-content') {
-    const trimmed = avatarSvg.trim()
-    if (trimmed.startsWith('<svg')) {
-      return (
-        <span
-          className={`inline-flex items-center justify-center overflow-hidden ${isMono ? 'dark:invert' : ''}`}
-          style={{ width: size, height: size }}
-          dangerouslySetInnerHTML={{ __html: trimmed }}
-        />
-      )
-    }
-    const matchedIcon = AVATAR_MAP[trimmed.toLowerCase()]
-    if (matchedIcon) {
-      const CustomMatchedIcon = matchedIcon
-      return (
-        <span className={`inline-flex items-center justify-center shrink-0 ${isMono ? 'dark:invert' : ''}`}>
-          <CustomMatchedIcon size={size} />
-        </span>
-      )
-    }
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
-      return (
-        <img
-          src={trimmed}
-          alt={name}
-          className={`shrink-0 rounded-full object-cover ${isMono ? 'dark:invert' : ''}`}
-          style={{ width: size, height: size }}
-        />
-      )
-    }
-  }
-
-  const Icon = AVATAR_MAP[key]
-  if (Icon) {
+export const ProviderIcon: FC<ProviderIconProps> = ({ name, size = 20, avatarSvg }) => {
+  if (avatarSvg) {
     return (
-      <span className={`inline-flex items-center justify-center shrink-0 ${isMono ? 'dark:invert' : ''}`}>
-        <Icon size={size} />
-      </span>
+      <img
+        src={avatarSvg}
+        alt={name}
+        style={{ width: size, height: size }}
+        className="rounded object-contain shrink-0"
+      />
     )
   }
 
-  const color = FALLBACK_COLORS[key] || '#6b7280'
-  const label = name[0]?.toUpperCase() || '?'
+  const key = name.toLowerCase()
+  const IconComp = AVATAR_MAP[key]
+
+  if (IconComp) {
+    if (MONO_PROVIDERS.has(key)) {
+      return (
+        <span className="inline-flex items-center justify-center shrink-0 dark:text-white text-gray-800">
+          <IconComp size={size} />
+        </span>
+      )
+    }
+    return <IconComp size={size} className="shrink-0" />
+  }
+
+  const initial = name.charAt(0).toUpperCase()
+  const bgColor = FALLBACK_COLORS[key] || '#3b82f6'
+
   return (
     <span
-      className="inline-flex items-center justify-center rounded-full text-white text-xs font-bold shrink-0"
-      style={{ width: size, height: size, backgroundColor: color, fontSize: size * 0.45 }}
+      style={{ width: size, height: size, backgroundColor: bgColor }}
+      className="inline-flex items-center justify-center rounded text-white font-semibold text-xs shrink-0"
     >
-      {label}
+      {initial}
     </span>
   )
 }

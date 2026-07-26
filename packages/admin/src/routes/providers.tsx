@@ -1,7 +1,7 @@
 import { createRoute } from '@tanstack/react-router'
 import { Route as rootRoute } from './__root'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, Fragment } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PrimaryButton, SecondaryButton, DangerButton, Input, Card, Badge, Toggle } from '../components/ui'
 import { ProviderIcon } from '../components/provider-icon'
@@ -111,7 +111,7 @@ export const Route = createRoute({
     function startEdit(name: string) {
       const cfg = defaults?.[name] || {}
       const builtin = allProviders.find(p => p.name === name)
-      setExpanded(name)
+      setExpanded(expanded === name ? null : name)
       setEditDisplay(cfg.displayName || builtin?.displayName || name)
       setEditAvatarSvg(cfg.avatarSvg || '')
     }
@@ -122,126 +122,21 @@ export const Route = createRoute({
     if (isError) return <div className="p-6 text-red-500">{t('common.error')}: {(error as any)?.message || t('common.requestFailed')}</div>
 
     return (
-      <div>
-        <div className="flex justify-between items-center mb-6">
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold">{t('providersPage.title')}</h1>
+            <h1 className="text-2xl font-bold dark:text-white">{t('providersPage.title')}</h1>
             <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
               {t('providersPage.descriptionToggleOnly')}
             </p>
           </div>
-          <PrimaryButton onClick={() => { setShowCustom(true); setExpanded(null) }}>
+          <PrimaryButton onClick={() => { setShowCustom(!showCustom); setExpanded(null) }}>
             + {t('providersPage.addCustom')}
           </PrimaryButton>
         </div>
 
-        <div className="overflow-x-auto mb-8">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700 text-sm text-gray-500">
-                <th className="pb-3 pr-4 w-12">#</th>
-                <th className="pb-3 pr-4 whitespace-nowrap">{t('providersPage.name')}</th>
-                <th className="pb-3 pr-4 w-full">{t('providersPage.displayName')}</th>
-                <th className="pb-3 pr-4 whitespace-nowrap">{t('providersPage.type')}</th>
-                <th className="pb-3 pr-4 whitespace-nowrap">{t('providersPage.status')}</th>
-                <th className="pb-3 text-right pr-2 whitespace-nowrap">{t('providersPage.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allProviders.map((p, i) => {
-                const cfg = defaults?.[p.name]
-                const isEnabled = cfg?.enabled ?? false
-                const isEditing = expanded === p.name && !showCustom
-                return (
-                  <Fragment key={p.name}>
-                    <tr className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
-                      <td className="py-3.5 pr-4 text-gray-400 text-sm">{i + 1}</td>
-                      <td className="py-3.5 pr-4 font-mono text-sm dark:text-gray-300 whitespace-nowrap">{p.name}</td>
-                      <td className="py-3.5 pr-4 font-medium dark:text-gray-200">
-                        <div className="flex items-center gap-2">
-                          <ProviderIcon name={p.name} size={22} avatarSvg={defaults?.[p.name]?.avatarSvg} />
-                          {String(t(`providerNames.${p.name}`, { defaultValue: p.displayName || p.name }))}
-                          {p.isCustom && <Badge color="orange">{t('providersPage.custom')}</Badge>}
-                        </div>
-                      </td>
-                      <td className="py-3.5 pr-4 whitespace-nowrap">
-                        <Badge color={p.type === 'native' ? 'purple' : p.type === 'ollama' ? 'orange' : 'blue'}>
-                          {p.type}
-                        </Badge>
-                      </td>
-                      <td className="py-3.5 pr-4 whitespace-nowrap">
-                        {isEnabled ? (
-                          <Badge color="green">{t('providersPage.enabledStatus')}</Badge>
-                        ) : (
-                          <Badge color="gray">{t('providersPage.disabledStatus')}</Badge>
-                        )}
-                      </td>
-                      <td className="py-3.5 text-right pr-2 whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-3 pr-1">
-                          <Toggle
-                            checked={isEnabled}
-                            onChange={(val: boolean) => toggleMutation.mutate({ name: p.name, enabled: val })}
-                            disabled={toggleMutation.isPending}
-                          />
-                          <SecondaryButton
-                            onClick={() => startEdit(p.name)}
-                          >
-                            {t('providersPage.editAvatar')}
-                          </SecondaryButton>
-                          {p.isCustom && (
-                            <DangerButton
-                              onClick={() => { if (confirm(t('common.delete') + '?')) deleteMutation.mutate(p.name) }}
-                            >
-                              {t('providersPage.delete')}
-                            </DangerButton>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                    {isEditing && (
-                      <tr>
-                        <td colSpan={6} className="p-0">
-                          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 mx-4 my-3">
-                            <div className="p-4 space-y-4">
-                              <h3 className="font-semibold dark:text-gray-200">
-                                {t('providersPage.settingsTitle')}: {p.displayName}
-                              </h3>
-                              <div>
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">
-                                  {t('providersPage.displayName')}
-                                </label>
-                                <Input value={editDisplay} onChange={setEditDisplay} />
-                              </div>
-                              <div>
-                                <AvatarInput
-                                  value={editAvatarSvg}
-                                  onChange={setEditAvatarSvg}
-                                  providerName={p.name}
-                                />
-                              </div>
-                              <div className="flex gap-2 pt-2">
-                                <PrimaryButton
-                                  onClick={() => toggleMutation.mutate({ name: expanded, displayName: editDisplay, avatarSvg: editAvatarSvg })}
-                                  disabled={toggleMutation.isPending}
-                                >
-                                  {toggleMutation.isPending ? t('common.loading') : t('providersPage.save')}
-                                </PrimaryButton>
-                                <SecondaryButton onClick={() => setExpanded(null)}>{t('providersPage.cancel')}</SecondaryButton>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
         {showCustom && (
-          <Card title={t('providersPage.customFormTitle')} className="mb-8 w-full">
+          <Card title={t('providersPage.customFormTitle')} className="w-full">
             <form onSubmit={(e) => {
               e.preventDefault()
               toggleMutation.mutate({
@@ -251,7 +146,7 @@ export const Route = createRoute({
                 avatarSvg: customAvatarSvg || undefined,
               })
             }} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium mb-1 dark:text-gray-300">{t('providersPage.name')}</label>
                   <Input value={customName} onChange={setCustomName} required placeholder="e.g. my-ai" />
@@ -278,6 +173,116 @@ export const Route = createRoute({
             </form>
           </Card>
         )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+          {allProviders.map((p) => {
+            const cfg = defaults?.[p.name]
+            const isEnabled = cfg?.enabled ?? false
+            const isEditing = expanded === p.name && !showCustom
+            return (
+              <div
+                key={p.name}
+                className={`bg-white dark:bg-gray-800 rounded-xl border transition-all duration-200 p-3.5 flex flex-col justify-between ${
+                  isEnabled
+                    ? 'border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md'
+                    : 'border-gray-200/60 dark:border-gray-700/60 opacity-80'
+                }`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2.5 mb-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="shrink-0 p-1.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-700">
+                        <ProviderIcon name={p.name} size={24} avatarSvg={defaults?.[p.name]?.avatarSvg} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-semibold text-sm dark:text-white truncate">
+                            {String(t(`providerNames.${p.name}`, { defaultValue: p.displayName || p.name }))}
+                          </h3>
+                          {p.isCustom && <Badge color="orange">{t('providersPage.custom')}</Badge>}
+                        </div>
+                        <div className="mt-0.5">
+                          <span className="inline-block px-1.5 py-0.2 font-mono text-[11px] text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/60 rounded">
+                            {p.name}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="shrink-0">
+                      <Toggle
+                        checked={isEnabled}
+                        onChange={(val: boolean) => toggleMutation.mutate({ name: p.name, enabled: val })}
+                        disabled={toggleMutation.isPending}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700/60 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Badge color={p.type === 'native' ? 'purple' : p.type === 'ollama' ? 'orange' : 'blue'}>
+                        {p.type}
+                      </Badge>
+                      {isEnabled ? (
+                        <Badge color="green">{t('providersPage.enabledStatus')}</Badge>
+                      ) : (
+                        <Badge color="gray">{t('providersPage.disabledStatus')}</Badge>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(p.name)}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium cursor-pointer"
+                      >
+                        {isEditing ? t('providersPage.cancel') : t('providersPage.editAvatar')}
+                      </button>
+                      {p.isCustom && (
+                        <button
+                          type="button"
+                          onClick={() => { if (confirm(t('common.delete') + '?')) deleteMutation.mutate(p.name) }}
+                          className="text-xs text-red-600 dark:text-red-400 hover:underline font-medium cursor-pointer"
+                        >
+                          {t('providersPage.delete')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {isEditing && (
+                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3 bg-gray-50/50 dark:bg-gray-900/40 p-3 rounded-lg">
+                    <h4 className="text-xs font-semibold dark:text-gray-300">
+                      {t('providersPage.settingsTitle')}: {p.displayName}
+                    </h4>
+                    <div>
+                      <label className="block text-xs font-medium mb-1 dark:text-gray-300">
+                        {t('providersPage.displayName')}
+                      </label>
+                      <Input value={editDisplay} onChange={setEditDisplay} />
+                    </div>
+                    <div>
+                      <AvatarInput
+                        value={editAvatarSvg}
+                        onChange={setEditAvatarSvg}
+                        providerName={p.name}
+                      />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <PrimaryButton
+                        onClick={() => toggleMutation.mutate({ name: expanded, displayName: editDisplay, avatarSvg: editAvatarSvg })}
+                        disabled={toggleMutation.isPending}
+                      >
+                        {toggleMutation.isPending ? t('common.loading') : t('providersPage.save')}
+                      </PrimaryButton>
+                      <SecondaryButton onClick={() => setExpanded(null)}>{t('providersPage.cancel')}</SecondaryButton>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
     )
   },

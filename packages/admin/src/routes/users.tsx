@@ -71,7 +71,7 @@ export const Route = createRoute({
     })
 
     function startEdit(u: { id: string; username: string | null; email: string }) {
-      setEditingId(u.id)
+      setEditingId(editingId === u.id ? null : u.id)
       setEditUsername(u.username || '')
       setEditEmail(u.email)
       setEditPassword('')
@@ -81,41 +81,49 @@ export const Route = createRoute({
     if (isError) return <div className="p-6 text-red-500">{t('common.error')}: {(error as any)?.message || t('common.requestFailed')}</div>
 
     return (
-<div>
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">{t('users.title')}</h1>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold dark:text-white">{t('users.title')}</h1>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+              管理系统注册用户、分配管理员权限与双因素认证
+            </p>
+          </div>
           <PrimaryButton onClick={() => setShowCreate(!showCreate)}>
             {showCreate ? t('usersPage.cancel') : `+ ${t('usersPage.createUser')}`}
           </PrimaryButton>
         </div>
 
         {showCreate && (
-          <Card className="mb-6">
-            <h2 className="font-semibold mb-3 dark:text-white">{t('usersPage.createUser')}</h2>
-            <div className="flex flex-wrap gap-3 items-end">
+          <Card className="w-full">
+            <h2 className="font-semibold mb-4 text-base dark:text-white">{t('usersPage.createUser')}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">{t('usersPage.username')} *</label>
-                <Input value={newUser.username} onChange={v => setNewUser({ ...newUser, username: v })} className="w-32" />
+                <label className="block text-xs font-medium text-gray-500 mb-1">{t('usersPage.username')} *</label>
+                <Input value={newUser.username} onChange={v => setNewUser({ ...newUser, username: v })} />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">{t('usersPage.email')} *</label>
-                <Input value={newUser.email} onChange={v => setNewUser({ ...newUser, email: v })} className="w-44" />
+                <label className="block text-xs font-medium text-gray-500 mb-1">{t('usersPage.email')} *</label>
+                <Input value={newUser.email} onChange={v => setNewUser({ ...newUser, email: v })} />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">{t('usersPage.password')} *</label>
-                <Input type="password" value={newUser.password} onChange={v => setNewUser({ ...newUser, password: v })} className="w-32" />
+                <label className="block text-xs font-medium text-gray-500 mb-1">{t('usersPage.password')} *</label>
+                <Input type="password" value={newUser.password} onChange={v => setNewUser({ ...newUser, password: v })} />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">{t('usersPage.displayName')}</label>
-                <Input value={newUser.displayName} onChange={v => setNewUser({ ...newUser, displayName: v })} className="w-32" />
+                <label className="block text-xs font-medium text-gray-500 mb-1">{t('usersPage.displayName')}</label>
+                <Input value={newUser.displayName} onChange={v => setNewUser({ ...newUser, displayName: v })} />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">{t('usersPage.role')}</label>
-                <Select value={newUser.role} onChange={v => setNewUser({ ...newUser, role: v })} className="w-24">
+                <label className="block text-xs font-medium text-gray-500 mb-1">{t('usersPage.role')}</label>
+                <Select value={newUser.role} onChange={v => setNewUser({ ...newUser, role: v })}>
                   <option value="user">{t('usersPage.user')}</option>
                   <option value="admin">{t('usersPage.admin')}</option>
                 </Select>
               </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+              <SecondaryButton onClick={() => setShowCreate(false)}>{t('usersPage.cancel')}</SecondaryButton>
               <PrimaryButton onClick={() => createMutation.mutate(newUser)} disabled={createMutation.isPending}>
                 {createMutation.isPending ? t('common.loading') : t('usersPage.create')}
               </PrimaryButton>
@@ -124,60 +132,86 @@ export const Route = createRoute({
           </Card>
         )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700 text-sm text-gray-500">
-                <th className="pb-2 pr-4">{t('usersPage.username')}</th>
-                <th className="pb-2 pr-4">{t('users.email')}</th>
-                <th className="pb-2 pr-4">{t('users.name')}</th>
-                <th className="pb-2 pr-4">{t('users.role')}</th>
-                <th className="pb-2 pr-4">{t('users.twoFA')}</th>
-                <th className="pb-2 pr-4">{t('users.created')}</th>
-                <th className="pb-2 pr-4">{t('usersPage.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.users?.map(u => {
-                const isEditing = editingId === u.id
-                return (
-                  <tr key={u.id} className="border-b border-gray-200 dark:border-gray-700">
-                    {isEditing ? (
-                      <>
-                        <td className="py-2 pr-4">
-                          <Input value={editUsername} onChange={setEditUsername} className="w-28" />
-                        </td>
-                        <td className="py-2 pr-4">
-                          <Input value={editEmail} onChange={setEditEmail} className="w-40" />
-                        </td>
-                        <td className="py-2 pr-4 dark:text-gray-300">{u.displayName}</td>
-                        <td className="py-2 pr-4 dark:text-gray-300">{u.role}</td>
-                        <td className="py-2 pr-4">{u.totpEnabled ? '✅' : '—'}</td>
-                        <td className="py-2 pr-4 text-sm dark:text-gray-400">{u.createdAt?.slice(0, 10)}</td>
-                        <td className="py-2 pr-4 flex gap-2 items-center">
-                          <Input type="password" value={editPassword} onChange={setEditPassword} placeholder={t('usersPage.password')} className="w-28" />
-                          <PrimaryButton onClick={() => updateMutation.mutate({ id: u.id, username: editUsername || undefined, email: editEmail, password: editPassword || undefined })} disabled={updateMutation.isPending}>{t('usersPage.save')}</PrimaryButton>
-                          <SecondaryButton onClick={() => setEditingId(null)}>{t('usersPage.cancel')}</SecondaryButton>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="py-2 pr-4 font-mono text-sm dark:text-gray-300">{u.username || '-'}</td>
-                        <td className="py-2 pr-4 dark:text-gray-300">{u.email}</td>
-                        <td className="py-2 pr-4 dark:text-gray-300">{u.displayName}</td>
-                        <td className="py-2 pr-4 dark:text-gray-300">{u.role}</td>
-                        <td className="py-2 pr-4">{u.totpEnabled ? '✅' : '—'}</td>
-                        <td className="py-2 pr-4 text-sm dark:text-gray-400">{u.createdAt?.slice(0, 10)}</td>
-                        <td className="py-2 pr-4">
-                          <SecondaryButton onClick={() => startEdit(u)}>{t('usersPage.edit')}</SecondaryButton>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {data?.users?.map(u => {
+            const isEditing = editingId === u.id
+            const initial = (u.displayName || u.username || u.email || 'U')[0].toUpperCase()
+            return (
+              <div
+                key={u.id}
+                className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-base shrink-0 shadow-sm">
+                      {initial}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-base dark:text-white truncate">
+                          {u.displayName || u.username || u.email}
+                        </h3>
+                        <Badge color={u.role === 'admin' ? 'purple' : 'blue'}>
+                          {u.role === 'admin' ? t('usersPage.admin') : t('usersPage.user')}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate mt-0.5">
+                        {u.email}
+                      </p>
+                    </div>
+                  </div>
+
+                  <SecondaryButton onClick={() => startEdit(u)}>
+                    {isEditing ? t('usersPage.cancel') : t('usersPage.edit')}
+                  </SecondaryButton>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/60 text-xs text-gray-500 dark:text-gray-400">
+                  <div>
+                    <span className="block text-gray-400 text-[11px] mb-0.5">{t('usersPage.username')}</span>
+                    <span className="font-mono text-gray-700 dark:text-gray-300 font-medium">{u.username || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="block text-gray-400 text-[11px] mb-0.5">{t('users.twoFA')}</span>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">{u.totpEnabled ? '✅ 已开启' : '未开启'}</span>
+                  </div>
+                  <div>
+                    <span className="block text-gray-400 text-[11px] mb-0.5">{t('users.created')}</span>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">{u.createdAt?.slice(0, 10)}</span>
+                  </div>
+                </div>
+
+                {isEditing && (
+                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3 bg-gray-50/50 dark:bg-gray-900/40 p-3 rounded-lg">
+                    <h4 className="text-xs font-semibold dark:text-gray-300">编辑用户信息及设置新密码</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium mb-1 dark:text-gray-300">{t('usersPage.username')}</label>
+                        <Input value={editUsername} onChange={setEditUsername} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 dark:text-gray-300">{t('users.email')}</label>
+                        <Input value={editEmail} onChange={setEditEmail} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1 dark:text-gray-300">{t('usersPage.password')} (留空表示不修改)</label>
+                      <Input type="password" value={editPassword} onChange={setEditPassword} placeholder="新密码" />
+                    </div>
+                    <div className="flex gap-2 justify-end pt-1">
+                      <SecondaryButton onClick={() => setEditingId(null)}>{t('usersPage.cancel')}</SecondaryButton>
+                      <PrimaryButton
+                        onClick={() => updateMutation.mutate({ id: u.id, username: editUsername || undefined, email: editEmail, password: editPassword || undefined })}
+                        disabled={updateMutation.isPending}
+                      >
+                        {updateMutation.isPending ? t('common.loading') : t('usersPage.save')}
+                      </PrimaryButton>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
     )

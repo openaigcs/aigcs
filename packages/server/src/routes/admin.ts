@@ -61,8 +61,29 @@ router.put('/sites/:siteId/providers/reorder', zValidator('json', z.object({
   return c.json({ code: 0, message: 'Providers reordered successfully' })
 })
 
-function insertAuditLog(db: any, values: Record<string, any>) {
-  db.insert(auditLog).values({ ...values, createdAt: values.createdAt || new Date().toISOString() }).run()
+function getClientIp(c: any): string {
+  if (!c || !c.req) return '127.0.0.1'
+  try {
+    const cfIp = c.req.header('cf-connecting-ip')
+    if (cfIp && cfIp.trim()) return cfIp.trim()
+    const xForwardedFor = c.req.header('x-forwarded-for')
+    if (xForwardedFor && xForwardedFor.trim()) {
+      const firstIp = xForwardedFor.split(',')[0].trim()
+      if (firstIp) return firstIp
+    }
+    const xRealIp = c.req.header('x-real-ip')
+    if (xRealIp && xRealIp.trim()) return xRealIp.trim()
+  } catch {}
+  return '127.0.0.1'
+}
+
+function insertAuditLog(db: any, values: Record<string, any>, c?: any) {
+  const ipAddress = values.ipAddress || values.ip_address || values.ip || (c ? getClientIp(c) : '127.0.0.1')
+  db.insert(auditLog).values({
+    ...values,
+    ipAddress,
+    createdAt: values.createdAt || new Date().toISOString(),
+  }).run()
 }
 
 function toSnakeCase(s: string): string {
@@ -2266,9 +2287,19 @@ router.get('/audit-log', async (c) => {
   const limit = parseInt(c.req.query('limit') || '20')
   const offset = (page - 1) * limit
 
-  const items = raw.prepare?.(
+  const rawItems = (raw.prepare?.(
     `SELECT al.* FROM audit_log al LEFT JOIN sites s ON json_extract(al.details, '$.siteId') = s.id WHERE s.user_id = ? OR al.user_id = ? ORDER BY al.created_at DESC LIMIT ? OFFSET ?`,
-  ).all(user.id, user.id, limit, offset) || []
+  ).all(user.id, user.id, limit, offset) || []) as any[]
+
+  const items = rawItems.map((item) => {
+    const ipVal = item.ip_address || item.ipAddress || item.ip || '127.0.0.1'
+    return {
+      ...item,
+      ip: ipVal,
+      ip_address: ipVal,
+      ipAddress: ipVal,
+    }
+  })
 
   const totalRow = raw.prepare?.(
     `SELECT COUNT(*) as count FROM audit_log al LEFT JOIN sites s ON json_extract(al.details, '$.siteId') = s.id WHERE s.user_id = ? OR al.user_id = ?`,

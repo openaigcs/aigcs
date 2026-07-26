@@ -70,7 +70,7 @@ function AuditLogPage() {
                       <td className="px-3 py-2">
                         <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-1.5 py-0.5 rounded">{entry.action}</span>
                       </td>
-                      <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{entry.ip || '-'}</td>
+                      <td className="px-3 py-2 text-xs font-mono text-gray-500 dark:text-gray-400">{entry.ip || entry.ip_address || entry.ipAddress || '127.0.0.1'}</td>
                       <td className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500 text-center">{expandedId === entry.id ? '−' : '⋯'}</td>
                     </tr>
                     {expandedId === entry.id && (

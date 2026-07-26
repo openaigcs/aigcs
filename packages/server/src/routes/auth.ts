@@ -33,6 +33,33 @@ function jwtSecret(): string {
 const ACCESS_TOKEN_EXPIRES = '15m' as const
 const REFRESH_TOKEN_EXPIRES = '7d' as const
 
+function getClientIp(c: any): string {
+  if (!c || !c.req) return '127.0.0.1'
+  try {
+    const cfIp = c.req.header('cf-connecting-ip')
+    if (cfIp && cfIp.trim()) return cfIp.trim()
+    const xForwardedFor = c.req.header('x-forwarded-for')
+    if (xForwardedFor && xForwardedFor.trim()) {
+      const firstIp = xForwardedFor.split(',')[0].trim()
+      if (firstIp) return firstIp
+    }
+    const xRealIp = c.req.header('x-real-ip')
+    if (xRealIp && xRealIp.trim()) return xRealIp.trim()
+  } catch {}
+  return '127.0.0.1'
+}
+
+function createAuthAuditLog(c: any, values: Record<string, any>) {
+  const db = getDb()
+  const ipAddress = values.ipAddress || values.ip_address || values.ip || getClientIp(c)
+  db.insert(auditLog).values({
+    id: nanoid(),
+    ...values,
+    ipAddress,
+    createdAt: values.createdAt || new Date().toISOString(),
+  }).run()
+}
+
 const router = new Hono()
 
 async function verifyCaptcha(raw: any, token: string, provider: string): Promise<boolean> {
@@ -513,7 +540,7 @@ router.post('/change-password', authGuard, zValidator('json', changePasswordSche
   const newHash = await hashPassword(newPassword)
   db.update(users).set({ passwordHash: newHash, updatedAt: new Date().toISOString() }).where(eq(users.id, user.id)).run()
 
-  db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.password.change' }).run()
+  createAuthAuditLog(c, { userId: user.id, action: 'auth.password.change' })
   createNotification(user.id, 'warning', '密码修改通知', '您的账户密码已成功修改。如非本人操作，请立即检查账号安全。')
 
   return c.json({ code: 0, message: 'Password changed successfully' })

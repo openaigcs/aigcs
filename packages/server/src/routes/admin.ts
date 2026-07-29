@@ -98,19 +98,25 @@ function insertAuditLog(arg1: any, arg2: any, arg3?: any) {
   let db: any = null
   let values: Record<string, any> = {}
 
-  if (arg1 && typeof arg1 === 'object' && ('req' in arg1 || typeof arg1.get === 'function')) {
-    c = arg1
-    db = arg2
-    values = arg3 || {}
-  } else {
+  if (arg1 && typeof arg1 === 'object' && typeof arg1.insert === 'function') {
     db = arg1
     values = arg2 || {}
     c = arg3
+  } else if (arg1 && typeof arg1 === 'object' && ('req' in arg1 || typeof arg1.header === 'function')) {
+    c = arg1
+    if (arg2 && typeof arg2 === 'object' && typeof arg2.insert === 'function') {
+      db = arg2
+      values = arg3 || {}
+    } else {
+      values = arg2 || {}
+    }
+  } else {
+    values = arg1 || {}
   }
 
+  const realDb = (db && typeof db.insert === 'function') ? db : getDb()
   const clientIp = (c ? getClientIp(c) : null) || values.ipAddress || values.ip_address || values.ip || '127.0.0.1'
 
-  const realDb = db || getDb()
   realDb.insert(auditLog).values({
     id: values.id || nanoid(),
     ...values,
@@ -2437,10 +2443,39 @@ router.get('/users', requireRole('admin'), async (c) => {
     }).from(users).where(eq(users.id, currentUser.id)).get()
   }
 
+  let gravatarProxy = ''
+  try {
+    const raw = getRawDb()
+    const pluginRow = raw.prepare?.("SELECT settings FROM plugins WHERE name = 'native'").get() as { settings: string } | undefined
+    if (pluginRow?.settings) {
+      const parsed = JSON.parse(pluginRow.settings)
+      gravatarProxy = parsed.gravatarProxy || ''
+    }
+  } catch {}
+
+  const mapUser = (u: any) => {
+    let finalAvatarUrl = ''
+    if (u.avatarUrl) {
+      if (u.avatarUrl.startsWith('/') || u.avatarUrl.startsWith('http')) {
+        finalAvatarUrl = u.avatarUrl
+      } else {
+        finalAvatarUrl = `/api/auth/avatar/${u.id}`
+      }
+    }
+    return {
+      ...u,
+      avatarUrl: finalAvatarUrl,
+    }
+  }
+
+  const rawList = currentUserData ? [currentUserData, ...allUsers] : allUsers
+  const userList = rawList.map(mapUser)
+
   return c.json({
     code: 0,
     data: {
-      users: currentUserData ? [currentUserData, ...allUsers] : allUsers,
+      users: userList,
+      gravatarProxy,
       total: total?.count ?? 0,
       page,
       limit,

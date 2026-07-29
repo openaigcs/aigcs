@@ -6,6 +6,21 @@ import { useTranslation } from 'react-i18next'
 import { PrimaryButton, SecondaryButton, Input, Select, Card, Badge } from '../components/ui'
 import { md5 } from '../md5.js'
 
+function getGravatarSrc(email: string, proxy?: string): string {
+  if (!email) return ''
+  const hash = md5(email.trim().toLowerCase())
+  const avatarParams = 'd=mp&s=128'
+  if (proxy && proxy.trim()) {
+    const trimmed = proxy.trim()
+    if (trimmed.includes('HASH')) {
+      return trimmed.replace('HASH', hash)
+    }
+    const cleanHost = trimmed.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+    return `https://${cleanHost}/avatar/${hash}?${avatarParams}`
+  }
+  return `https://www.gravatar.com/avatar/${hash}?${avatarParams}`
+}
+
 export const Route = createRoute({
   getParentRoute: () => rootRoute,
   path: '/users',
@@ -138,9 +153,9 @@ export const Route = createRoute({
           {data?.users?.map(u => {
             const isEditing = editingId === u.id
             const initial = (u.displayName || u.username || u.email || 'U')[0].toUpperCase()
-            const hasCustomAvatar = !!u.avatarUrl
-            const gravatarUrl = u.email ? `https://www.gravatar.com/avatar/${md5(u.email)}?d=mp&s=128` : null
-            const displayAvatarSrc = hasCustomAvatar ? u.avatarUrl : (!failedAvatars[u.id] ? gravatarUrl : null)
+            const hasCustomAvatar = !!u.avatarUrl && !failedAvatars[`custom_${u.id}`]
+            const gravatarUrl = u.email ? getGravatarSrc(u.email, (data as any)?.gravatarProxy) : null
+            const displayAvatarSrc = hasCustomAvatar ? u.avatarUrl : (!failedAvatars[`gravatar_${u.id}`] ? gravatarUrl : null)
 
             return (
               <div
@@ -156,7 +171,13 @@ export const Route = createRoute({
                           src={displayAvatarSrc}
                           alt={u.username || u.email}
                           className="w-full h-full object-cover"
-                          onError={() => setFailedAvatars(prev => ({ ...prev, [u.id]: true }))}
+                          onError={() => {
+                            if (hasCustomAvatar) {
+                              setFailedAvatars(prev => ({ ...prev, [`custom_${u.id}`]: true }))
+                            } else {
+                              setFailedAvatars(prev => ({ ...prev, [`gravatar_${u.id}`]: true }))
+                            }
+                          }}
                         />
                       ) : (
                         <span>{initial}</span>

@@ -262,8 +262,11 @@ CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
   try { raw.exec("ALTER TABLE system_config ADD COLUMN altcha_secret_key TEXT"); } catch {}
   try { raw.exec("ALTER TABLE system_config ADD COLUMN hcaptcha_site_key TEXT"); } catch {}
   try { raw.exec("ALTER TABLE system_config ADD COLUMN hcaptcha_secret_key TEXT"); } catch {}
-  // Add email_locale column to existing databases
   try { raw.exec("ALTER TABLE system_config ADD COLUMN email_locale TEXT NOT NULL DEFAULT 'en'"); } catch {}
+  try { raw.exec("ALTER TABLE system_config ADD COLUMN github_client_id TEXT"); } catch {}
+  try { raw.exec("ALTER TABLE system_config ADD COLUMN github_client_secret TEXT"); } catch {}
+  try { raw.exec("ALTER TABLE system_config ADD COLUMN google_client_id TEXT"); } catch {}
+  try { raw.exec("ALTER TABLE system_config ADD COLUMN google_client_secret TEXT"); } catch {}
 
   // Visitor comments table (comment plugins)
   raw.exec(`

@@ -29,7 +29,9 @@ export const systemConfig = sqliteTable('system_config', {
   allowedOrigins: text('allowed_origins', { mode: 'json' }),
   rateLimitMax: integer('rate_limit_max').notNull().default(100),
   rateLimitWindow: integer('rate_limit_window').notNull().default(60),
-  providerDefaults: text('provider_defaults'),
-  emailLocale: text('email_locale').notNull().default('en'),
+  githubClientId: text('github_client_id'),
+  githubClientSecret: text('github_client_secret'),
+  googleClientId: text('google_client_id'),
+  googleClientSecret: text('google_client_secret'),
   updatedAt: text('updated_at'),
 })

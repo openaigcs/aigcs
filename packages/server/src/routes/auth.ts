@@ -768,6 +768,19 @@ router.get('/avatar/:userId', async (c) => {
   }
 })
 
+function getRpId(c: any): string {
+  if (process.env.RP_ID) return process.env.RP_ID
+  const host = c.req.header('x-forwarded-host') || c.req.header('host') || 'localhost'
+  return host.split(':')[0].trim() || 'localhost'
+}
+
+function getRpOrigin(c: any): string {
+  if (process.env.RP_ORIGIN) return process.env.RP_ORIGIN
+  const proto = c.req.header('x-forwarded-proto') || 'http'
+  const host = c.req.header('x-forwarded-host') || c.req.header('host') || 'localhost'
+  return `${proto}://${host}`
+}
+
 // ── Passkey / WebAuthn Options Store ──
 const passkeyRegistrationStore = new Map<string, { userId: string; challenge: string; expiresAt: number }>()
 const passkeyAuthenticationStore = new Map<string, { userId?: string; challenge: string; expiresAt: number }>()
@@ -801,7 +814,7 @@ router.delete('/passkey/delete/:id', authGuard, async (c) => {
   const id = c.req.param('id')
   const db = getDb()
   db.delete(userPasskeys).where(and(eq(userPasskeys.id, id), eq(userPasskeys.userId, user.id))).run()
-  db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.passkey.delete', details: JSON.stringify({ id }) }).run()
+  createAuthAuditLog(c, { userId: user.id, action: 'auth.passkey.delete', details: JSON.stringify({ id }) })
   createNotification(user.id, 'warning', 'Passkey 密钥已删除', '您的账户下包含的一项 Passkey 免密登录密钥已被删除。')
   return c.json({ code: 0, message: 'Passkey deleted' })
 })
@@ -811,7 +824,7 @@ router.post('/passkey/register-options', authGuard, async (c) => {
   const user = c.get('user')!
   const db = getDb()
   const rpName = 'AIGCS'
-  const rpID = process.env.RP_ID || c.req.header('host')?.split(':')[0] || 'localhost'
+  const rpID = getRpId(c)
 
   const userKeys = db.select().from(userPasskeys).where(eq(userPasskeys.userId, user.id)).all()
   const dbUser = db.select().from(users).where(eq(users.id, user.id)).get() as any
@@ -819,16 +832,16 @@ router.post('/passkey/register-options', authGuard, async (c) => {
   const options = await generateRegistrationOptions({
     rpName,
     rpID,
-    userID: Uint8Array.from(Buffer.from(user.id)),
+    userID: new TextEncoder().encode(user.id),
     userName: user.email,
-    userDisplayName: dbUser?.displayName || user.email,
+    userDisplayName: dbUser?.displayName || dbUser?.username || user.email,
     attestationType: 'none',
     excludeCredentials: userKeys.map((k: any) => ({
-      id: Buffer.from(k.credentialId, 'base64url'),
+      id: k.credentialId,
       type: 'public-key',
     })),
     authenticatorSelection: {
-      residentKey: 'required',
+      residentKey: 'preferred',
       userVerification: 'preferred',
     },
   })
@@ -854,8 +867,8 @@ router.post('/passkey/register-verify', authGuard, async (c) => {
   }
   passkeyRegistrationStore.delete(user.id)
 
-  const rpID = process.env.RP_ID || c.req.header('host')?.split(':')[0] || 'localhost'
-  const origin = process.env.RP_ORIGIN || `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host')}`
+  const rpID = getRpId(c)
+  const origin = getRpOrigin(c)
 
   let verification
   try {
@@ -867,6 +880,7 @@ router.post('/passkey/register-verify', authGuard, async (c) => {
       requireUserVerification: false,
     })
   } catch (err: any) {
+    console.error('[Passkey Register Error]', err)
     throw new HTTPException(400, { message: `Verification failed: ${err.message}` })
   }
 
@@ -880,20 +894,19 @@ router.post('/passkey/register-verify', authGuard, async (c) => {
   const counter = registrationInfo.credential.counter
   const credentialDeviceType = registrationInfo.credentialDeviceType
 
-  const credIdBase64 = credentialID
   const pubKeyBase64 = Buffer.from(credentialPublicKey).toString('base64url')
 
   db.insert(userPasskeys).values({
     id: nanoid(),
     userId: user.id,
-    credentialId: credIdBase64,
+    credentialId: credentialID,
     publicKey: pubKeyBase64,
     counter: counter,
-    deviceType: credentialDeviceType,
+    deviceType: credentialDeviceType || 'singleDevice',
     backedUp: registrationInfo.credentialBackedUp ? 1 : 0,
   } as any).run()
 
-  db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.passkey.register' }).run()
+  createAuthAuditLog(c, { userId: user.id, action: 'auth.passkey.register' })
   createNotification(user.id, 'success', 'Passkey 密钥绑定成功', '已成功为您的账户注册并绑定了一个新的 Passkey 免密登录密钥。')
 
   return c.json({ code: 0, message: 'Passkey registered successfully' })
@@ -901,7 +914,7 @@ router.post('/passkey/register-verify', authGuard, async (c) => {
 
 // POST /api/auth/passkey/login-options
 router.post('/passkey/login-options', async (c) => {
-  const rpID = process.env.RP_ID || c.req.header('host')?.split(':')[0] || 'localhost'
+  const rpID = getRpId(c)
 
   const options = await generateAuthenticationOptions({
     rpID,
@@ -928,8 +941,24 @@ router.post('/passkey/login-verify', async (c) => {
   }
   passkeyAuthenticationStore.delete(optionId)
 
-  const credIdBase64 = assertion.id
-  const passkey = db.select().from(userPasskeys).where(eq(userPasskeys.credentialId, credIdBase64)).get()
+  const rawCredId = assertion.id || assertion.rawId
+  if (!rawCredId) {
+    throw new HTTPException(400, { message: 'Invalid assertion format' })
+  }
+
+  let passkey = db.select().from(userPasskeys).where(eq(userPasskeys.credentialId, rawCredId)).get()
+
+  if (!passkey && assertion.rawId) {
+    passkey = db.select().from(userPasskeys).where(eq(userPasskeys.credentialId, assertion.rawId)).get()
+  }
+
+  if (!passkey) {
+    const allKeys = db.select().from(userPasskeys).all()
+    const normalize = (str: string) => (str || '').replace(/[-_]/g, '').replace(/=/g, '')
+    const targetNorm = normalize(rawCredId)
+    passkey = allKeys.find((k: any) => normalize(k.credentialId) === targetNorm)
+  }
+
   if (!passkey) {
     throw new HTTPException(400, { message: 'Passkey credential not registered' })
   }
@@ -939,8 +968,8 @@ router.post('/passkey/login-verify', async (c) => {
     throw new HTTPException(404, { message: 'User not found' })
   }
 
-  const rpID = process.env.RP_ID || c.req.header('host')?.split(':')[0] || 'localhost'
-  const origin = process.env.RP_ORIGIN || `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host')}`
+  const rpID = getRpId(c)
+  const origin = getRpOrigin(c)
 
   let verification
   try {
@@ -957,6 +986,7 @@ router.post('/passkey/login-verify', async (c) => {
       requireUserVerification: false,
     })
   } catch (err: any) {
+    console.error('[Passkey Login Verification Error]', err)
     throw new HTTPException(400, { message: `Authentication failed: ${err.message}` })
   }
 
@@ -970,7 +1000,7 @@ router.post('/passkey/login-verify', async (c) => {
   const accessToken = jwt.sign({ sub: user.id, email: user.email, role: user.role }, jwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRES })
   const refreshToken = jwt.sign({ sub: user.id, type: 'refresh' }, jwtSecret(), { expiresIn: REFRESH_TOKEN_EXPIRES })
 
-  db.insert(auditLog).values({ id: nanoid(), userId: user.id, action: 'auth.passkey.login' }).run()
+  createAuthAuditLog(c, { userId: user.id, action: 'auth.passkey.login' })
 
   return c.json({
     code: 0,
@@ -984,13 +1014,50 @@ router.post('/passkey/login-verify', async (c) => {
   })
 })
 
+function getOauthConfig(provider: 'github' | 'google') {
+  const envClientId = provider === 'github' ? process.env.GITHUB_CLIENT_ID : process.env.GOOGLE_CLIENT_SECRET
+  const envClientSecret = provider === 'github' ? process.env.GITHUB_CLIENT_SECRET : process.env.GOOGLE_CLIENT_SECRET
+
+  const clientId = (provider === 'github' ? process.env.GITHUB_CLIENT_ID : process.env.GOOGLE_CLIENT_ID) || ''
+  const clientSecret = (provider === 'github' ? process.env.GITHUB_CLIENT_SECRET : process.env.GOOGLE_CLIENT_SECRET) || ''
+
+  if (clientId && clientSecret) {
+    return { clientId, clientSecret }
+  }
+
+  try {
+    const raw = getRawDb()
+    const config = raw.prepare?.(`SELECT github_client_id, github_client_secret, google_client_id, google_client_secret FROM system_config WHERE id = 'global'`).get() as any
+    if (config) {
+      const dbClientId = provider === 'github' ? config.github_client_id : config.google_client_id
+      const dbClientSecret = provider === 'github' ? config.github_client_secret : config.google_client_secret
+      if (dbClientId && dbClientSecret) {
+        return { clientId: dbClientId, clientSecret: dbClientSecret }
+      }
+    }
+  } catch {}
+
+  return { clientId, clientSecret }
+}
+
 // GET /api/auth/oauth/github
 router.get('/oauth/github', async (c) => {
   const isBind = c.req.query('bind') === 'true'
-  const clientId = process.env.GITHUB_CLIENT_ID
-  const clientSecret = process.env.GITHUB_CLIENT_SECRET
+  const { clientId, clientSecret } = getOauthConfig('github')
   if (!clientId || !clientSecret) {
-    throw new HTTPException(500, { message: 'GitHub OAuth is not configured' })
+    return c.html(`
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><title>OAuth 未配置</title></head>
+      <body style="font-family:-apple-system,sans-serif;padding:40px;text-align:center;background:#f9fafb;color:#111827;">
+        <div style="max-width:440px;margin:40px auto;background:#fff;padding:32px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);border:1px solid #e5e7eb;">
+          <h2 style="color:#ef4444;margin-top:0;">GitHub OAuth 未配置</h2>
+          <p style="font-size:14px;color:#6b7280;line-height:1.5;">系统管理员尚未在环境变量或后台系统设置中配置 GitHub Client ID 和 Client Secret。</p>
+          <button onclick="window.close()" style="margin-top:16px;padding:8px 20px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500;">关闭窗口</button>
+        </div>
+      </body>
+      </html>
+    `, 400)
   }
 
   const origin = process.env.RP_ORIGIN || `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host')}`
@@ -1033,8 +1100,7 @@ router.get('/oauth/github/callback', async (c) => {
     return c.html('<h1>Authentication failed: CSRF state invalid.</h1>')
   }
 
-  const clientId = process.env.GITHUB_CLIENT_ID
-  const clientSecret = process.env.GITHUB_CLIENT_SECRET
+  const { clientId, clientSecret } = getOauthConfig('github')
   const origin = process.env.RP_ORIGIN || `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host')}`
   const redirectUri = `${origin}/api/auth/oauth/github/callback`
 
@@ -1173,10 +1239,21 @@ router.get('/oauth/github/callback', async (c) => {
 // GET /api/auth/oauth/google
 router.get('/oauth/google', async (c) => {
   const isBind = c.req.query('bind') === 'true'
-  const clientId = process.env.GOOGLE_CLIENT_ID
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+  const { clientId, clientSecret } = getOauthConfig('google')
   if (!clientId || !clientSecret) {
-    throw new HTTPException(500, { message: 'Google OAuth is not configured' })
+    return c.html(`
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><title>OAuth 未配置</title></head>
+      <body style="font-family:-apple-system,sans-serif;padding:40px;text-align:center;background:#f9fafb;color:#111827;">
+        <div style="max-width:440px;margin:40px auto;background:#fff;padding:32px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);border:1px solid #e5e7eb;">
+          <h2 style="color:#ef4444;margin-top:0;">Google OAuth 未配置</h2>
+          <p style="font-size:14px;color:#6b7280;line-height:1.5;">系统管理员尚未在环境变量或后台系统设置中配置 Google Client ID 和 Client Secret。</p>
+          <button onclick="window.close()" style="margin-top:16px;padding:8px 20px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500;">关闭窗口</button>
+        </div>
+      </body>
+      </html>
+    `, 400)
   }
 
   const origin = process.env.RP_ORIGIN || `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host')}`
@@ -1219,8 +1296,7 @@ router.get('/oauth/google/callback', async (c) => {
     return c.html('<h1>Authentication failed: CSRF state invalid.</h1>')
   }
 
-  const clientId = process.env.GOOGLE_CLIENT_ID
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+  const { clientId, clientSecret } = getOauthConfig('google')
   const origin = process.env.RP_ORIGIN || `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host')}`
   const redirectUri = `${origin}/api/auth/oauth/google/callback`
 

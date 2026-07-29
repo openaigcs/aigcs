@@ -34,6 +34,10 @@ function flatToForm(flat: Record<string, any>) {
     siteTitle: flat.site_title || '',
     siteFavicon: flat.site_favicon || '',
     emailLocale: flat.email_locale || 'en',
+    githubClientId: flat.github_client_id || '',
+    githubClientSecret: flat.github_client_secret || '',
+    googleClientId: flat.google_client_id || '',
+    googleClientSecret: flat.google_client_secret || '',
   }
 }
 
@@ -71,6 +75,10 @@ function formToFlat(form: ReturnType<typeof flatToForm>) {
     site_title: form.siteTitle || null,
     site_favicon: form.siteFavicon || null,
     email_locale: form.emailLocale || 'en',
+    github_client_id: form.githubClientId || null,
+    github_client_secret: form.githubClientSecret === MASKED ? null : (form.githubClientSecret || null),
+    google_client_id: form.googleClientId || null,
+    google_client_secret: form.googleClientSecret === MASKED ? null : (form.googleClientSecret || null),
   }
 }
 
@@ -289,6 +297,39 @@ function SystemConfigSection({ onSave, mutation }: { onSave: (data: any) => void
             <span className="text-sm dark:text-gray-300">{t('settings.notifyNewRegistration')}</span>
           </label>
         )}
+      </Card>
+
+      <Card title="OAuth 登录与第三方账号绑定">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          在后台配置 GitHub 与 Google 应用密钥后，用户即可在登录页与个人中心一键免密登录及绑定第三方账号。
+        </p>
+        <div className="space-y-4">
+          <div className="bg-gray-50 dark:bg-gray-900/60 p-3.5 rounded-xl border border-gray-200/80 dark:border-gray-700 space-y-3">
+            <h4 className="font-semibold text-sm dark:text-gray-200 flex items-center gap-2">
+              <span>🐱</span> GitHub OAuth 应用配置
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="GitHub Client ID" value={form.githubClientId} onChange={(v) => setForm({ ...form, githubClientId: v })} placeholder="Ov23rt..." />
+              <Field label="GitHub Client Secret" type="password" value={form.githubClientSecret} onChange={(v) => setForm({ ...form, githubClientSecret: v })} placeholder="******" />
+            </div>
+            <p className="text-xs text-gray-400">
+              重定向 Callback URL: <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-gray-600 dark:text-gray-300 font-mono">{window.location.origin}/api/auth/oauth/github/callback</code>
+            </p>
+          </div>
+
+          <div className="bg-gray-50 dark:bg-gray-900/60 p-3.5 rounded-xl border border-gray-200/80 dark:border-gray-700 space-y-3">
+            <h4 className="font-semibold text-sm dark:text-gray-200 flex items-center gap-2">
+              <span>🔍</span> Google OAuth 应用配置
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Google Client ID" value={form.googleClientId} onChange={(v) => setForm({ ...form, googleClientId: v })} placeholder="xxxx.apps.googleusercontent.com" />
+              <Field label="Google Client Secret" type="password" value={form.googleClientSecret} onChange={(v) => setForm({ ...form, googleClientSecret: v })} placeholder="******" />
+            </div>
+            <p className="text-xs text-gray-400">
+              重定向 Callback URL: <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-gray-600 dark:text-gray-300 font-mono">{window.location.origin}/api/auth/oauth/google/callback</code>
+            </p>
+          </div>
+        </div>
       </Card>
 
       <div className="mt-8">

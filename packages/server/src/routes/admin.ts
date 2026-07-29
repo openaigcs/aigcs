@@ -150,13 +150,15 @@ const ALLOWED_CONFIG_KEYS = new Set([
   'site_title', 'site_favicon',
   'email_notify_comments',
   'email_locale',
+  'github_client_id', 'github_client_secret',
+  'google_client_id', 'google_client_secret',
 ])
 
 const SENSITIVE_CONFIG_KEYS = new Set([
   'jwt_secret', 'smtp_pass', 'turnstile_secret_key',
   'recaptcha_secret_key', 'geetest_captcha_key',
   'cap_secret_key', 'altcha_secret_key', 'hcaptcha_secret_key',
-  'cap_verify_url',
+  'cap_verify_url', 'github_client_secret', 'google_client_secret',
 ])
 
 function maskSensitiveConfig(config: Record<string, unknown>) {

@@ -133,6 +133,7 @@ function Field({ label, value, onChange, type = 'text', placeholder }: { label: 
 function SystemConfigSection({ onSave, mutation }: { onSave: (data: any) => void; mutation: { isPending: boolean; isSuccess: boolean; isError: boolean; error: Error | null } }) {
   const { t } = useTranslation()
   const [form, setForm] = useState(flatToForm({}))
+  const [copiedHealth, setCopiedHealth] = useState(false)
   const [smtpTestResult, setSmtpTestResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [smtpTestEmail, setSmtpTestEmail] = useState('')
   const savedFormRef = useRef<Record<string, any>>(flatToForm({}))
@@ -299,6 +300,32 @@ function SystemConfigSection({ onSave, mutation }: { onSave: (data: any) => void
         )}
       </Card>
 
+      <Card title="健康检测">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+          系统提供标准 HTTP 心跳检测接口，可用于 Uptime Kuma、UptimeRobot、Better Stack 等服务监控面板。支持 HEAD 和 GET 请求，返回 200 OK 状态码与系统运行指标。
+        </p>
+        <div>
+          <label className="block text-sm font-medium mb-1 dark:text-gray-300">健康检测 URL</label>
+          <div className="flex gap-2 items-center">
+            <input
+              readOnly
+              value={`${window.location.origin}/api/health`}
+              onClick={(e) => e.currentTarget.select()}
+              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-200 font-mono text-sm focus:outline-none select-all cursor-pointer"
+            />
+            <SecondaryButton
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/api/health`)
+                setCopiedHealth(true)
+                setTimeout(() => setCopiedHealth(false), 2000)
+              }}
+            >
+              {copiedHealth ? '已复制！' : '复制'}
+            </SecondaryButton>
+          </div>
+        </div>
+      </Card>
+
       <Card title="OAuth 登录与第三方账号绑定">
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
           在后台配置 GitHub 与 Google 应用密钥后，用户即可在登录页与个人中心一键免密登录及绑定第三方账号。
@@ -310,7 +337,12 @@ function SystemConfigSection({ onSave, mutation }: { onSave: (data: any) => void
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="GitHub Client ID" value={form.githubClientId} onChange={(v) => setForm({ ...form, githubClientId: v })} placeholder="Ov23rt..." />
-              <Field label="GitHub Client Secret" type="password" value={form.githubClientSecret} onChange={(v) => setForm({ ...form, githubClientSecret: v })} placeholder="******" />
+              <div>
+                <Field label="GitHub Client Secret" type="password" value={form.githubClientSecret} onChange={(v) => setForm({ ...form, githubClientSecret: v })} placeholder="填入新 Secret 覆盖" />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {form.githubClientSecret === '******' ? '🔒 已保存并加密脱敏（输入新密钥可直接覆盖）' : '填写 GitHub 应用生成的 Client Secret'}
+                </p>
+              </div>
             </div>
             <p className="text-xs text-gray-400">
               重定向 Callback URL: <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-gray-600 dark:text-gray-300 font-mono">{window.location.origin}/api/auth/oauth/github/callback</code>
@@ -323,7 +355,12 @@ function SystemConfigSection({ onSave, mutation }: { onSave: (data: any) => void
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Google Client ID" value={form.googleClientId} onChange={(v) => setForm({ ...form, googleClientId: v })} placeholder="xxxx.apps.googleusercontent.com" />
-              <Field label="Google Client Secret" type="password" value={form.googleClientSecret} onChange={(v) => setForm({ ...form, googleClientSecret: v })} placeholder="******" />
+              <div>
+                <Field label="Google Client Secret" type="password" value={form.googleClientSecret} onChange={(v) => setForm({ ...form, googleClientSecret: v })} placeholder="填入新 Secret 覆盖" />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {form.googleClientSecret === '******' ? '🔒 已保存并加密脱敏（输入新密钥可直接覆盖）' : '填写 Google Cloud 产生的 Client Secret'}
+                </p>
+              </div>
             </div>
             <p className="text-xs text-gray-400">
               重定向 Callback URL: <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-gray-600 dark:text-gray-300 font-mono">{window.location.origin}/api/auth/oauth/google/callback</code>

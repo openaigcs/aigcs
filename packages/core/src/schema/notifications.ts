@@ -9,6 +9,7 @@ export const notifications = sqliteTable('notifications', {
   type: text('type').notNull(), // 'success', 'error', 'info', 'warning'
   title: text('title').notNull(),
   message: text('message').notNull(),
+  targetUrl: text('target_url'),
   isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull().$default(() => new Date().toISOString()),
 }, (table) => ({

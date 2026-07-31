@@ -279,54 +279,59 @@ function SystemConfigSection({ onSave, mutation }: { onSave: (data: any) => void
         </div>
       </Card>
 
-      <Card title={t('settings.registrationOpen')}>
-        <label className="flex items-center gap-2">
-          <Toggle
-            checked={form.registrationOpen}
-            onChange={() => setForm({ ...form, registrationOpen: !form.registrationOpen })}
-          />
-          <span className="text-sm dark:text-gray-300">{t('settings.registrationOpen')}</span>
-        </label>
-        {!!form.registrationOpen && (
-          <label className="flex items-center gap-2 mt-3">
-            <input
-              type="checkbox"
-              checked={form.notifyNewRegistration}
-              onChange={(e) => setForm({ ...form, notifyNewRegistration: e.target.checked })}
-              className="dark:bg-gray-800"
+      <div id="registration">
+        <Card title={t('settings.registrationOpen')}>
+          <label className="flex items-center gap-2">
+            <Toggle
+              checked={form.registrationOpen}
+              onChange={() => setForm({ ...form, registrationOpen: !form.registrationOpen })}
             />
-            <span className="text-sm dark:text-gray-300">{t('settings.notifyNewRegistration')}</span>
+            <span className="text-sm dark:text-gray-300">{t('settings.registrationOpen')}</span>
           </label>
-        )}
-      </Card>
+          {!!form.registrationOpen && (
+            <label className="flex items-center gap-2 mt-3">
+              <input
+                type="checkbox"
+                checked={form.notifyNewRegistration}
+                onChange={(e) => setForm({ ...form, notifyNewRegistration: e.target.checked })}
+                className="dark:bg-gray-800"
+              />
+              <span className="text-sm dark:text-gray-300">{t('settings.notifyNewRegistration')}</span>
+            </label>
+          )}
+        </Card>
+      </div>
 
-      <Card title="健康检测">
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-          系统提供标准 HTTP 心跳检测接口，可用于 Uptime Kuma、UptimeRobot、Better Stack 等服务监控面板。支持 HEAD 和 GET 请求，返回 200 OK 状态码与系统运行指标。
-        </p>
-        <div>
-          <label className="block text-sm font-medium mb-1 dark:text-gray-300">健康检测 URL</label>
-          <div className="flex gap-2 items-center">
-            <input
-              readOnly
-              value={`${window.location.origin}/api/health`}
-              onClick={(e) => e.currentTarget.select()}
-              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-200 font-mono text-sm focus:outline-none select-all cursor-pointer"
-            />
-            <SecondaryButton
-              onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/api/health`)
-                setCopiedHealth(true)
-                setTimeout(() => setCopiedHealth(false), 2000)
-              }}
-            >
-              {copiedHealth ? '已复制！' : '复制'}
-            </SecondaryButton>
+      <div id="health">
+        <Card title="健康检测">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+            系统提供标准 HTTP 心跳检测接口，可用于 Uptime Kuma、UptimeRobot、Better Stack 等服务监控面板。支持 HEAD 和 GET 请求，返回 200 OK 状态码与系统运行指标。
+          </p>
+          <div>
+            <label className="block text-sm font-medium mb-1 dark:text-gray-300">健康检测 URL</label>
+            <div className="flex gap-2 items-center">
+              <input
+                readOnly
+                value={`${window.location.origin}/api/health`}
+                onClick={(e) => e.currentTarget.select()}
+                className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-200 font-mono text-sm focus:outline-none select-all cursor-pointer"
+              />
+              <SecondaryButton
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/api/health`)
+                  setCopiedHealth(true)
+                  setTimeout(() => setCopiedHealth(false), 2000)
+                }}
+              >
+                {copiedHealth ? '已复制！' : '复制'}
+              </SecondaryButton>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
 
-      <Card title="OAuth 登录与第三方账号绑定">
+      <div id="oauth">
+        <Card title="OAuth 登录与第三方账号绑定">
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
           在后台配置 GitHub 与 Google 应用密钥后，用户即可在登录页与个人中心一键免密登录及绑定第三方账号。
         </p>
@@ -368,6 +373,7 @@ function SystemConfigSection({ onSave, mutation }: { onSave: (data: any) => void
           </div>
         </div>
       </Card>
+      </div>
 
       <div className="mt-8">
         {mutation.isError && <p className="text-red-500 mb-2">{(mutation.error as Error)?.message}</p>}

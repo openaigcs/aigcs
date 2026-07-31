@@ -421,14 +421,8 @@ router.post('/sites/:siteId/providers', zValidator('json', z.object({
   const site = db.select().from(sites).where(and(eq(sites.id, siteId), eq(sites.userId, user.id))).get()
   if (!site) throw new HTTPException(404, { message: 'Site not found' })
 
-  // Prevent duplicate AI providers on the same site
-  const builtinNames = getBuiltinProviderNames()
-  if (builtinNames.includes(body.name)) {
-    const existing = db.select().from(providers).where(and(eq(providers.siteId, siteId), eq(providers.name, body.name))).get()
-    if (existing) {
-      throw new HTTPException(400, { message: 'AI provider already exists for this site' })
-    }
-  }
+  // Allow multiple model providers of the same provider type (e.g. OpenAI gpt-5.5 and gpt-5.6-sol)
+  // Only ensure displayName is unique for the site to prevent confusion.
   const existingDisplayName = db.select().from(providers).where(and(eq(providers.siteId, siteId), eq(providers.displayName, body.displayName))).get()
   if (existingDisplayName) {
     throw new HTTPException(400, { message: 'Provider with this display name already exists' })

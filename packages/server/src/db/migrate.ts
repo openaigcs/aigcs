@@ -235,6 +235,8 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
 `)
 
+  // Add target_url column to notifications
+  try { raw.exec("ALTER TABLE notifications ADD COLUMN target_url TEXT"); } catch {}
   // Add provider_defaults column to existing databases
   try { raw.exec("ALTER TABLE system_config ADD COLUMN provider_defaults TEXT"); } catch {}
   // Add username column to existing databases

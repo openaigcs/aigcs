@@ -7,7 +7,8 @@ export function createNotification(
   type: 'success' | 'error' | 'info' | 'warning',
   title: string,
   message: string,
-  siteId?: string
+  siteId?: string,
+  targetUrl?: string
 ) {
   try {
     const db = getDb()
@@ -18,6 +19,7 @@ export function createNotification(
       type,
       title,
       message,
+      targetUrl: targetUrl || null,
       isRead: false,
       createdAt: new Date().toISOString()
     }).run()

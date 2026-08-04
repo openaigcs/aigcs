@@ -9,7 +9,7 @@
     "@aigcs/core": "workspace:*",
     "@hono/zod-validator": "^0.8.0",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.12.31",
+    "hono": "^4.12.34",
     "nanoid": "^5.1.16",
     "zod": "^4.4.3"
   }

@@ -1,7 +1,8 @@
 # Stage 1: Build
 FROM node:26-alpine AS builder
 RUN apk add --no-cache python3 make g++ && ln -sf python3 /usr/bin/python
-RUN corepack enable
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN npm install -g corepack && corepack enable
 
 WORKDIR /app
     COPY package.json ./
@@ -48,7 +49,8 @@ RUN mkdir -p /out/packages && \
 
 # Stage 2: Production
 FROM node:26-alpine
-RUN corepack enable
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN npm install -g corepack && corepack enable
 
 WORKDIR /app
 COPY --from=builder /out/package.json ./package.json

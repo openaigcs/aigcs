@@ -8,7 +8,7 @@ AIGCS - AI Generated Comments System.
 > [English](README.md)
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Node](https://img.shields.io/badge/node-%3E%3D24-brightgreen)
+![Node](https://img.shields.io/badge/node-%3E%3D26-brightgreen)
 ![TypeScript](https://img.shields.io/badge/typescript-strict-3178C6)
 
 <p align="center">

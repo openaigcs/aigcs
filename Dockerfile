@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:24-alpine AS builder
+FROM node:26-alpine AS builder
 RUN apk add --no-cache python3 make g++ && ln -sf python3 /usr/bin/python
 RUN corepack enable
 
@@ -47,7 +47,7 @@ RUN mkdir -p /out/packages && \
     cp -r packages/plugins /out/packages/plugins
 
 # Stage 2: Production
-FROM node:24-alpine
+FROM node:26-alpine
 RUN corepack enable
 
 WORKDIR /app

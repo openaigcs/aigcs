@@ -4,11 +4,13 @@ import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { nanoid } from 'nanoid'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { getAdapter, extractAcct } from './adapters.js'
 import { mastodonBindings, mastodonCachedComments, sites, pageCache } from '@aigcs/core'
 
 let _rawDb: any = null
+let _drizzleDb: any = null
+let _publishArticleToFedi: any = null
 const activeFetches = new Map<string, Promise<void>>()
 
 async function detectSoftware(instanceUrl: string): Promise<string> {
@@ -50,6 +52,7 @@ const plugin: Plugin = {
   hooks: {
     onServerInit: async (ctx) => {
       _rawDb = ctx.rawDb
+      _drizzleDb = ctx.db
       const router = new Hono()
 
       function requireSite(c: any, siteId: string) {
@@ -845,6 +848,255 @@ z.object({
         return c.json({ code: 0, data: { success: true } })
       })
 
+      function cleanHtmlText(str: string): string {
+        if (!str) return ''
+        return str
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&quot;/g, '"')
+          .replace(/&apos;/g, "'")
+          .replace(/&#39;/g, "'")
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+          .replace(/\s+/g, ' ')
+          .trim()
+      }
+
+      function extractHtmlTitle(html: string): string {
+        const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
+        if (!match) return ''
+        const raw = cleanHtmlText(match[1])
+        const suffixMatch = raw.match(/^(.+?)\s*[|\-—–:]{1,2}\s*.+$/)
+        return suffixMatch ? suffixMatch[1].trim() : raw
+      }
+
+      function extractHtmlDescription(html: string): string {
+        const descMatch =
+          html.match(/<meta\s+[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i) ||
+          html.match(/<meta\s+[^>]*content=["']([^"']*)["'][^>]*name=["']description["']/i)
+        if (descMatch && descMatch[1].trim()) return cleanHtmlText(descMatch[1])
+
+        const ogMatch =
+          html.match(/<meta\s+[^>]*property=["']og:description["'][^>]*content=["']([^"']*)["']/i) ||
+          html.match(/<meta\s+[^>]*content=["']([^"']*)["'][^>]*property=["']og:description["']/i)
+        if (ogMatch && ogMatch[1].trim()) return cleanHtmlText(ogMatch[1])
+
+        const twitterMatch =
+          html.match(/<meta\s+[^>]*name=["']twitter:description["'][^>]*content=["']([^"']*)["']/i) ||
+          html.match(/<meta\s+[^>]*content=["']([^"']*)["'][^>]*name=["']twitter:description["']/i)
+        if (twitterMatch && twitterMatch[1].trim()) return cleanHtmlText(twitterMatch[1])
+
+        const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+        if (bodyMatch) {
+          const text = cleanHtmlText(bodyMatch[1])
+          if (text) return text.slice(0, 200)
+        }
+
+        return ''
+      }
+
+      // Shared function to publish an article to Fediverse and create binding
+      async function publishArticleToFedi(
+        db: any,
+        siteId: string,
+        slug: string,
+        options?: {
+          title?: string
+          description?: string
+          domain?: string
+        },
+      ): Promise<{ success: boolean; id?: string; statusId?: string; message?: string }> {
+        const drizzle = db || _drizzleDb
+        if (!drizzle) return { success: false, message: 'Database not initialized' }
+
+        const site = drizzle.select().from(sites).where(eq(sites.id, siteId)).get() as any
+        if (!site) return { success: false, message: 'Site not found' }
+
+        const settings = typeof site.settings === 'string' ? JSON.parse(site.settings) : (site.settings || {})
+        const fediConfig = settings.fediConfig || {}
+        const token = fediConfig.accessToken
+        if (!token) return { success: false, message: 'Not authorized' }
+
+        const rawSlug = slug
+        const leadingSlug = rawSlug.startsWith('/') ? rawSlug : `/${rawSlug}`
+        const trailingSlug = leadingSlug.endsWith('/') ? leadingSlug : `${leadingSlug}/`
+        const noTrailingSlug = trailingSlug.slice(0, -1)
+        const normSlug = rawSlug.replace(/^\/+|\/+$/g, '')
+
+        // Check if slug is already bound (avoid duplicate publishing)
+        const existingBinding = drizzle
+          .select()
+          .from(mastodonBindings)
+          .where(
+            and(
+              eq(mastodonBindings.siteId, siteId),
+              sql`${mastodonBindings.slug} IN (${rawSlug}, ${leadingSlug}, ${trailingSlug}, ${noTrailingSlug}, ${normSlug})`,
+            ),
+          )
+          .get()
+        if (existingBinding) {
+          return { success: false, message: `Slug "${slug}" already bound`, id: existingBinding.id }
+        }
+
+        const instanceUrl = (fediConfig.instanceUrl || '').replace(/\/+$/, '')
+        const instanceType = fediConfig.instanceType || 'mastodon'
+        const software = fediConfig.software || ''
+        const fediAuthor = fediConfig.fediAuthor || ''
+        const adapter = getAdapter(instanceType, software)
+
+        const targetDomain = options?.domain || site.domain || ''
+        let pageUrl = rawSlug
+        if (!/^https?:\/\//i.test(pageUrl)) {
+          const cleanSlug = rawSlug.startsWith('/') ? rawSlug : `/${rawSlug}`
+          pageUrl = targetDomain ? `https://${targetDomain}${cleanSlug}` : cleanSlug
+        }
+
+        let title = (options?.title || '').trim()
+        let excerpt = (options?.description || '').trim()
+
+        // Read page cache if title or excerpt is missing
+        const pc = (drizzle
+          .select()
+          .from(pageCache)
+          .where(
+            and(
+              eq(pageCache.siteId, siteId),
+              sql`${pageCache.path} IN (${rawSlug}, ${leadingSlug}, ${trailingSlug}, ${noTrailingSlug}, ${normSlug})`,
+            ),
+          )
+          .get() || null) as any
+
+        if (!title && pc?.title) {
+          title = pc.title.trim()
+        }
+
+        if (!excerpt && pc?.contentSource) {
+          excerpt = cleanHtmlText(pc.contentSource)
+        }
+
+        // If still missing title or excerpt, fetch from target URL
+        if ((!title || !excerpt) && /^https?:\/\//i.test(pageUrl)) {
+          try {
+            const res = await fetch(pageUrl, {
+              signal: AbortSignal.timeout(10000),
+              headers: { 'User-Agent': 'AIGCS/1.0 Fediverse Publisher' },
+            })
+            if (res.ok) {
+              const html = await res.text()
+              if (!title) {
+                const fetchedTitle = extractHtmlTitle(html)
+                if (fetchedTitle) title = fetchedTitle
+              }
+              if (!excerpt) {
+                const fetchedDesc = extractHtmlDescription(html)
+                if (fetchedDesc) excerpt = fetchedDesc
+              }
+            }
+          } catch (err) {
+            console.warn('[mastodon] Failed to fetch page content for publish:', pageUrl, err)
+          }
+        }
+
+        // Fallback title to slug if still empty
+        if (!title) {
+          title = rawSlug.replace(/^\/+|\/+$/g, '').split('/').pop() || rawSlug
+        }
+
+        // Update page cache if we resolved title or excerpt
+        if (pc && (title !== pc.title || (excerpt && !pc.contentSource))) {
+          try {
+            drizzle
+              .update(pageCache)
+              .set({
+                title: title || pc.title,
+                contentSource: pc.contentSource || excerpt || null,
+                updatedAt: new Date().toISOString(),
+              })
+              .where(eq(pageCache.id, pc.id))
+              .run()
+          } catch {}
+        }
+
+        // Format clean excerpt (truncate safely to avoid hitting Mastodon's limit)
+        if (excerpt) {
+          excerpt = cleanHtmlText(excerpt)
+          if (excerpt.length > 280) {
+            excerpt = excerpt.slice(0, 277) + '...'
+          }
+        }
+
+        // Compose post text:
+        // ${siteName} 发布新文章：《${title}》
+        // ${url}
+        //
+        // ${摘要summary}或者${描述description}
+        const siteName = (site.name || site.domain || '').trim()
+        const formattedTitle = title.startsWith('《') && title.endsWith('》') ? title : `《${title}》`
+        const header = siteName ? `${siteName} 发布新文章：${formattedTitle}` : `发布新文章：${formattedTitle}`
+
+        let postText = `${header}\n${pageUrl}`
+        if (excerpt) {
+          postText += `\n\n${excerpt}`
+        }
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...adapter.authHeader(token),
+        }
+
+        let statusId = ''
+        if (['misskey', 'sharkey', 'firefish'].includes(instanceType)) {
+          const res = await fetch(`${instanceUrl}/api/notes/create`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ text: postText, visibility: 'public' }),
+          })
+          if (!res.ok) return { success: false, message: `Post failed: ${res.status}` }
+          const data = (await res.json()) as any
+          statusId = data.createdNote?.id || ''
+        } else {
+          const res = await fetch(`${instanceUrl}/api/v1/statuses`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ status: postText, visibility: 'public' }),
+          })
+          if (!res.ok) return { success: false, message: `Post failed: ${res.status}` }
+          const data = (await res.json()) as any
+          statusId = data.id || ''
+        }
+
+        if (!statusId) return { success: false, message: 'No status ID returned' }
+
+        // Auto-bind
+        const now = new Date().toISOString()
+        const id = nanoid()
+        drizzle
+          .insert(mastodonBindings)
+          .values({
+            id,
+            siteId,
+            slug: rawSlug,
+            instanceType,
+            instanceUrl: fediConfig.instanceUrl,
+            statusId,
+            accessToken: token,
+            fediAuthor,
+            autoFetch: 1,
+            cacheTtl: 30,
+            createdAt: now,
+            updatedAt: now,
+          } as any)
+          .run()
+
+        return { success: true, id, statusId }
+      }
+
+      _publishArticleToFedi = publishArticleToFedi
+
       // POST /api/admin/sites/:siteId/mastodon/publish — post a toot and auto-bind
       router.post(
         '/api/admin/sites/:siteId/mastodon/publish',
@@ -863,76 +1115,22 @@ z.object({
           const db = getDb()
           const body = await c.req.valid('json')
 
-          const site = db.select().from(sites).where(eq(sites.id, siteId)).get() as any
-          if (!site) return c.json({ code: 1, message: 'Site not found' }, 404)
+          const result = await publishArticleToFedi(db, siteId, body.slug, {
+            title: body.title,
+            description: body.description,
+            domain: body.domain,
+          })
 
-          const settings = typeof site.settings === 'string' ? JSON.parse(site.settings) : (site.settings || {})
-          const fediConfig = settings.fediConfig || {}
-          const token = fediConfig.accessToken
-          if (!token) return c.json({ code: 1, message: 'Not authorized' }, 401)
-
-          const instanceUrl = fediConfig.instanceUrl.replace(/\/+$/, '')
-          const instanceType = fediConfig.instanceType || 'mastodon'
-          const software = fediConfig.software || ''
-          const fediAuthor = fediConfig.fediAuthor || ''
-          const adapter = getAdapter(instanceType, software)
-          const pageUrl = body.domain ? `https://${body.domain}${body.slug}` : body.slug
-
-          // Read page cache for excerpt
-          let excerpt = body.description || ''
-          if (!excerpt) {
-            try {
-              const pc = db.select({ contentSource: pageCache.contentSource }).from(pageCache).where(and(eq(pageCache.siteId, siteId), eq(pageCache.path, body.slug))).get() as any
-              if (pc?.contentSource) excerpt = pc.contentSource.replace(/<[^>]*>/g, '').trim()
-            } catch {}
+          if (!result.success) {
+            const status = result.message?.includes('already bound')
+              ? 409
+              : result.message?.includes('Not authorized')
+                ? 401
+                : 502
+            return c.json({ code: 1, message: result.message }, status as any)
           }
 
-          // Compose post text
-          let postText = ''
-          if (body.title) postText += `《${body.title}》\n`
-          postText += pageUrl
-          if (excerpt) postText += `\n\n${excerpt.slice(0, 140)}`
-
-          const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-            ...adapter.authHeader(token),
-          }
-
-          let statusId = ''
-          if (['misskey', 'sharkey', 'firefish'].includes(instanceType)) {
-            const res = await fetch(`${instanceUrl}/api/notes/create`, {
-              method: 'POST', headers, body: JSON.stringify({ text: postText, visibility: 'public' }),
-            })
-            if (!res.ok) return c.json({ code: 1, message: 'Post failed' }, 502)
-            const data = await res.json()
-            statusId = data.createdNote?.id || ''
-          } else {
-            const res = await fetch(`${instanceUrl}/api/v1/statuses`, {
-              method: 'POST', headers, body: JSON.stringify({ status: postText, visibility: 'public' }),
-            })
-            if (!res.ok) return c.json({ code: 1, message: 'Post failed' }, 502)
-            const data = await res.json()
-            statusId = data.id || ''
-          }
-
-          if (!statusId) return c.json({ code: 1, message: 'No status ID returned' }, 502)
-
-          // One-to-one: check for duplicate slug
-          const existingSlug = db.select().from(mastodonBindings)
-            .where(and(eq(mastodonBindings.siteId, siteId), eq(mastodonBindings.slug, body.slug)))
-            .get()
-          if (existingSlug) return c.json({ code: 1, message: `Slug "${body.slug}" already bound` }, 409)
-
-          // Auto-bind
-          const now = new Date().toISOString()
-          const id = nanoid()
-          db.insert(mastodonBindings).values({
-            id, siteId, slug: body.slug, instanceType, instanceUrl: fediConfig.instanceUrl,
-            statusId, accessToken: token, fediAuthor, autoFetch: 1, cacheTtl: 30,
-            createdAt: now, updatedAt: now,
-          } as any).run()
-
-          return c.json({ code: 0, data: { id } })
+          return c.json({ code: 0, data: { id: result.id, statusId: result.statusId } })
         },
       )
 
@@ -949,6 +1147,7 @@ z.object({
           instanceUrl: '',
           accessToken: '',
           fediAuthor: '',
+          autoPublish: false,
           showBadge: true,
           avatarMode: 'aigcs',
           mravatarUrl: '',
@@ -958,7 +1157,7 @@ z.object({
           fedAdminAcct: '',
         }
         const { accessToken: _at, clientId: _ci, clientSecret: _cs, ...safe } = fediConfig
-        return c.json({ code: 0, data: { ...safe, authorized: !!_at } })
+        return c.json({ code: 0, data: { autoPublish: false, ...safe, authorized: !!_at } })
       })
 
       // PUT /api/admin/sites/:siteId/mastodon/config
@@ -971,6 +1170,7 @@ z.object({
             instanceUrl: z.string().min(1),
             accessToken: z.string().default(''),
             fediAuthor: z.string().optional(),
+            autoPublish: z.boolean().optional(),
             showBadge: z.boolean().optional(),
             avatarMode: z.string().optional(),
             mravatarUrl: z.string().optional(),
@@ -982,7 +1182,7 @@ z.object({
         ),
         async (c) => {
           const { siteId } = c.req.param()
-        requireSite(c, siteId)
+          requireSite(c, siteId)
           const body = await c.req.valid('json')
           const db = getDb()
           const site = db.select().from(sites).where(eq(sites.id, siteId)).get() as any
@@ -1024,6 +1224,7 @@ z.object({
                 instanceUrl: body.instanceUrl.replace(/\/$/, ''),
                 accessToken: body.accessToken || currentFediConfig.accessToken || '',
                 fediAuthor: body.fediAuthor !== undefined ? body.fediAuthor : (currentFediConfig.fediAuthor || ''),
+                autoPublish: body.autoPublish !== undefined ? body.autoPublish : (currentFediConfig.autoPublish ?? false),
                 showBadge: body.showBadge !== undefined ? body.showBadge : (currentFediConfig.showBadge !== false),
                 avatarMode: body.avatarMode || currentFediConfig.avatarMode || 'aigcs',
                 mravatarUrl: normalizedUrl,
@@ -1219,6 +1420,25 @@ const username = acct.replace(/^@+/, '').split('@')[0]
       }
 
       return ctx
+    },
+
+    onArticleImported: async (ctx) => {
+      try {
+        const db = _drizzleDb
+        if (!db || !_publishArticleToFedi) return
+        const site = db.select().from(sites).where(eq(sites.id, ctx.siteId)).get() as any
+        if (!site) return
+        const settings = typeof site.settings === 'string' ? JSON.parse(site.settings) : (site.settings || {})
+        const fediConfig = settings.fediConfig || {}
+        if (!fediConfig.autoPublish || !fediConfig.accessToken) return
+
+        await _publishArticleToFedi(db, ctx.siteId, ctx.path, {
+          title: ctx.title,
+          description: ctx.contentSource,
+        })
+      } catch (err) {
+        console.error('[mastodon] onArticleImported hook error:', err)
+      }
     },
   },
 }

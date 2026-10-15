@@ -733,6 +733,8 @@
     "statusId": "Status ID",
     "statusIdHint": "支持输入 Status ID 或完整的联邦帖子 URL。",
     "fediAuthor": "站长 Fedi ID",
+    "autoPublish": "自动发布新文章到联邦实例",
+    "autoPublishHint": "开启后，通过 RSS 或其他途径检测到新文章且尚未绑定联邦嘟文时，将自动按标准格式发布并绑定到当前授权的联邦实例。",
     "autoFetch": "自动获取新回复",
     "autoFetchHint": "关闭时每次 widget 请求实时从联邦实例获取；开启时缓存评论，按间隔刷新。大流量网站建议开启，小流量网站建议关闭。",
     "cacheTtl": "自动获取间隔",

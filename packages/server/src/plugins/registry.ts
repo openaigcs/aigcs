@@ -37,7 +37,10 @@ export async function runHook<T>(hookName: string, ctx: T, pluginName?: string):
     const hookFn = (plugin.hooks as any)[hookName]
     if (typeof hookFn === 'function') {
       try {
-        currentCtx = await hookFn(currentCtx)
+        const res = await hookFn(currentCtx)
+        if (res !== undefined) {
+          currentCtx = res
+        }
       } catch (err) {
         console.error(`[plugins] Hook "${hookName}" failed in plugin "${plugin.name}":`, err)
       }

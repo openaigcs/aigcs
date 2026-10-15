@@ -71,6 +71,7 @@ export function FediverseTab({ siteId, siteDomain }: { siteId: string; siteDomai
       setCustomInstanceType(fediConfig.instanceType)
     }
     if (fediConfig?.autoFetch !== undefined) setAutoFetch(fediConfig.autoFetch)
+    if (fediConfig?.autoPublish !== undefined) setAutoPublish(fediConfig.autoPublish)
     if (fediConfig?.cacheTtl !== undefined) setCacheTtl(fediConfig.cacheTtl)
   }, [fediConfig])
 
@@ -158,6 +159,7 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
   const [fedAdminAcct, setFedAdminAcct] = useState('')
   const [customInstanceType, setCustomInstanceType] = useState('')
   const [autoFetch, setAutoFetch] = useState(false)
+  const [autoPublish, setAutoPublish] = useState(false)
   const [cacheTtl, setCacheTtl] = useState(30)
   const [cacheTtlUnit, setCacheTtlUnit] = useState<'m' | 'h' | 'd' | 's'>('m')
   const [testResult, setTestResult] = useState<string>('')
@@ -287,7 +289,7 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
       else if (cacheTtlUnit === 'h') ttlMinutes = cacheTtl * 60
       else if (cacheTtlUnit === 'd') ttlMinutes = cacheTtl * 60 * 24
       if (ttlMinutes < 1) ttlMinutes = 1
-      const payload = { ...configForm, showBadge, avatarMode, mravatarUrl, mravatarDefault, mravatarProxied, mravatarNoCache, fedAdminAcct, autoFetch, cacheTtl: ttlMinutes } as any
+      const payload = { ...configForm, showBadge, avatarMode, mravatarUrl, mravatarDefault, mravatarProxied, mravatarNoCache, fedAdminAcct, autoFetch, autoPublish, cacheTtl: ttlMinutes } as any
       if (payload.instanceType === 'custom' && customInstanceType.trim()) {
         payload.instanceType = customInstanceType.trim()
       }
@@ -477,6 +479,14 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
           <span className="text-sm">{t('sites.showFediBadge')}</span>
         </div>
         <p className="text-xs text-gray-400 mt-1">{t('sites.showFediBadgeHint')}</p>
+        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <Toggle checked={autoPublish} onChange={() => {
+            setAutoPublish(!autoPublish)
+            if (!configForm) setConfigForm(getConfig() as any)
+          }} />
+          <span className="text-sm">{t('fedi.autoPublish')}</span>
+        </div>
+        <p className="text-xs text-gray-400 mt-1">{t('fedi.autoPublishHint')}</p>
         <div className="flex items-center gap-3 whitespace-nowrap mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
           <Toggle checked={autoFetch} onChange={() => { setAutoFetch(!autoFetch); if (!configForm) setConfigForm(getConfig() as any) }} />
           <span className="text-sm">{t('fedi.autoFetch')}</span>
@@ -660,7 +670,8 @@ const [configForm, setConfigForm] = useState<Record<string, string> | null>(null
                                     setBindInputs(prev => { const next = { ...prev }; delete next[entry.path]; return next })
                                   }} disabled={createBinding.isPending || !bindInputs[entry.path]}>{t('fedi.bindAction')}</SecondaryButton>
                                   <SecondaryButton onClick={() => {
-                                    publishMutation.mutate({ slug: entry.path, title: entry.title, description: entry.description })
+                                    const desc = entry.description || (entry.contentSource ? entry.contentSource.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300) : '')
+                                    publishMutation.mutate({ slug: entry.path, title: entry.title, description: desc })
                                   }} disabled={publishingSlug === entry.path}>{publishingSlug === entry.path ? t('common.loading') : t('common.publish')}</SecondaryButton>
                                 </div>
                               )}

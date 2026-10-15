@@ -4,6 +4,7 @@ import { eq, and, sql } from 'drizzle-orm'
 import { createHash } from 'node:crypto'
 import { JSDOM } from 'jsdom'
 import { fireWebhook } from './webhook.js'
+import { runHook } from '../plugins/registry.js'
 
 type RssSettings = {
   url?: string
@@ -13,7 +14,7 @@ type RssSettings = {
   last_fetched_at?: string
 }
 
-type RssEntry = { title: string; link: string }
+type RssEntry = { title: string; link: string; description?: string; content?: string }
 
 export function parseRssFeed(xml: string): RssEntry[] {
   const dom = new JSDOM(xml, { contentType: 'text/xml' })
@@ -25,7 +26,10 @@ export function parseRssFeed(xml: string): RssEntry[] {
     let link = item.querySelector('link')?.textContent || ''
     link = link.trim()
     const title = item.querySelector('title')?.textContent || ''
-    if (link) entries.push({ title, link })
+    const desc = item.querySelector('description')?.textContent || ''
+    const encoded = item.querySelector('encoded')?.textContent || item.querySelector('content\\:encoded')?.textContent || ''
+    const content = encoded || desc
+    if (link) entries.push({ title, link, description: desc, content })
   })
 
   const atomEntries = doc.querySelectorAll('entry')
@@ -37,7 +41,10 @@ export function parseRssFeed(xml: string): RssEntry[] {
       link = linkEl.getAttribute('href') || linkEl.textContent || ''
     }
     link = link.trim()
-    if (link) entries.push({ title, link })
+    const summary = entry.querySelector('summary')?.textContent || ''
+    const contentEl = entry.querySelector('content')?.textContent || ''
+    const content = contentEl || summary
+    if (link) entries.push({ title, link, description: summary, content })
   })
 
   return entries
@@ -58,10 +65,34 @@ export function importRssEntries(siteId: string, entries: RssEntry[]): { importe
 
     const cacheHash = createHash('md5').update(`${siteId}:${path}`).digest('hex')
     const existing = db.select().from(pageCache).where(eq(pageCache.id, cacheHash)).get()
+    const content = entry.content || entry.description || null
+    const now = new Date().toISOString()
     if (!existing) {
-      const now = new Date().toISOString()
-      db.insert(pageCache).values({ id: cacheHash, siteId, path, status: 'pending', createdAt: now, updatedAt: now }).run()
+      db.insert(pageCache).values({
+        id: cacheHash,
+        siteId,
+        path,
+        status: 'pending',
+        title: entry.title || null,
+        contentSource: content,
+        createdAt: now,
+        updatedAt: now,
+      }).run()
       imported++
+      runHook('onArticleImported', {
+        siteId,
+        path,
+        title: entry.title,
+        contentSource: content || undefined,
+      }).catch((err) => console.error('[rss-cron] onArticleImported hook failed:', err))
+    } else {
+      const updates: Record<string, any> = {}
+      if (!existing.title && entry.title) updates.title = entry.title
+      if (!existing.contentSource && content) updates.contentSource = content
+      if (Object.keys(updates).length > 0) {
+        updates.updatedAt = now
+        db.update(pageCache).set(updates).where(eq(pageCache.id, cacheHash)).run()
+      }
     }
   }
 

@@ -17,6 +17,7 @@ import { encrypt, decrypt, mask } from '../services/encryption.js'
 import { getBuiltinProviderNames } from '../providers/index.js'
 import { JSDOM } from 'jsdom'
 import { createNotification } from '../services/notification.js'
+import { runHook } from '../plugins/registry.js'
 
 const router = new Hono()
 router.use('*', authGuard)
@@ -1012,6 +1013,7 @@ router.get('/sites/:siteId/cache', async (c) => {
 
   const items = db.select({
     path: pageCache.path, status: pageCache.status, title: pageCache.title,
+    contentSource: pageCache.contentSource,
     createdAt: pageCache.createdAt, updatedAt: pageCache.updatedAt,
     generatedAt: pageCache.generatedAt, etag: pageCache.etag,
   }).from(pageCache).where(baseCondition)
@@ -1339,7 +1341,20 @@ router.post('/sites/:siteId/import-rss', zValidator('json', z.object({
       db.insert(pageCache).values({ id: cacheHash, siteId, path, status: 'pending', title: entry.title, contentSource: entry.content || null, createdAt: now, updatedAt: now }).run()
       imported++
       results.push({ url: entry.link, title: entry.title, path, status: 'imported' })
+      runHook('onArticleImported', {
+        siteId,
+        path,
+        title: entry.title,
+        contentSource: entry.content || undefined,
+      }).catch((err) => console.error('[admin] onArticleImported hook failed:', err))
     } else {
+      const updates: Record<string, any> = {}
+      if (!existing.title && entry.title) updates.title = entry.title
+      if (!existing.contentSource && entry.content) updates.contentSource = entry.content
+      if (Object.keys(updates).length > 0) {
+        updates.updatedAt = new Date().toISOString()
+        db.update(pageCache).set(updates).where(eq(pageCache.id, cacheHash)).run()
+      }
       results.push({ url: entry.link, title: entry.title, path, status: 'exists' })
     }
   }

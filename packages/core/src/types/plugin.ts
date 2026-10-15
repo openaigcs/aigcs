@@ -48,6 +48,14 @@ export interface SubmitContext {
   [key: string]: unknown
 }
 
+export interface ArticleImportedContext {
+  siteId: string
+  path: string
+  title?: string
+  contentSource?: string
+  [key: string]: unknown
+}
+
 export interface Plugin {
   name: string
   displayName?: Record<string, string>
@@ -65,5 +73,6 @@ export interface Plugin {
     beforeRender?: (ctx: PluginHookContext) => PluginHookContext | Promise<PluginHookContext>
     onFetchComments?: (ctx: FetchContext) => FetchContext | Promise<FetchContext>
     onCommentSubmit?: (ctx: SubmitContext) => SubmitContext | Promise<SubmitContext>
+    onArticleImported?: (ctx: ArticleImportedContext) => ArticleImportedContext | Promise<ArticleImportedContext> | void | Promise<void>
   }
 }

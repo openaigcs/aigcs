@@ -1040,7 +1040,8 @@ z.object({
 
         let postText = `${header}\n${pageUrl}`
         if (excerpt) {
-          postText += `\n\n${excerpt}`
+          const cleanExcerpt = excerpt.replace(/^摘要[：:]\s*/, '')
+          postText += `\n\n摘要：${cleanExcerpt}`
         }
 
         const headers: Record<string, string> = {

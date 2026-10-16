@@ -1782,6 +1782,32 @@ router.delete('/sites/:siteId/comments/visitor/:id', async (c) => {
   return c.json({ code: 0, message: 'Comment deleted' })
 })
 
+router.post('/sites/:siteId/comments/visitor/:id/hide', async (c) => {
+  const raw = getRawDb() as import('better-sqlite3').Database
+  const siteId = c.req.param('siteId')
+  const id = c.req.param('id')
+  requireSiteOwnership(c, siteId)
+
+  const comment = raw.prepare('SELECT * FROM visitor_comments WHERE id = ? AND site_id = ?').get(id, siteId) as any
+  if (!comment) throw new HTTPException(404, { message: 'Comment not found' })
+
+  raw.prepare("UPDATE visitor_comments SET status = 'hidden' WHERE id = ?").run(id)
+  return c.json({ code: 0, message: 'Comment hidden' })
+})
+
+router.post('/sites/:siteId/comments/visitor/:id/unhide', async (c) => {
+  const raw = getRawDb() as import('better-sqlite3').Database
+  const siteId = c.req.param('siteId')
+  const id = c.req.param('id')
+  requireSiteOwnership(c, siteId)
+
+  const comment = raw.prepare('SELECT * FROM visitor_comments WHERE id = ? AND site_id = ?').get(id, siteId) as any
+  if (!comment) throw new HTTPException(404, { message: 'Comment not found' })
+
+  raw.prepare("UPDATE visitor_comments SET status = 'approved' WHERE id = ?").run(id)
+  return c.json({ code: 0, message: 'Comment unhidden' })
+})
+
 router.delete('/sites/:siteId/comments/fedi/:id', async (c) => {
   const raw = getRawDb() as import('better-sqlite3').Database
   const siteId = c.req.param('siteId')
@@ -2064,9 +2090,12 @@ router.get('/sites/:siteId/comments/search', async (c) => {
     aiResults.push(...raw.prepare(sql + " ORDER BY c.generated_at DESC LIMIT ? OFFSET ?").all(...params, actualLimit, offset) as any[])
   }
 
+  const includeHidden = c.req.query('includeHidden') === 'true'
+
   if (type === 'all' || type === 'visitor') {
-    let sql = "SELECT v.id, v.path, v.author_name as authorName, v.author_email as authorEmail, v.content, v.created_at as createdAt, v.parent_id as parentId FROM visitor_comments v LEFT JOIN page_cache pc ON v.site_id = pc.site_id AND v.path = pc.path WHERE v.site_id = ?"
+    let sql = "SELECT v.id, v.path, v.author_name as authorName, v.author_email as authorEmail, v.content, v.created_at as createdAt, v.parent_id as parentId, v.status FROM visitor_comments v LEFT JOIN page_cache pc ON v.site_id = pc.site_id AND v.path = pc.path WHERE v.site_id = ?"
     const params: any[] = [siteId]
+    if (!includeHidden) sql += " AND v.status != 'hidden'"
     if (q) {
       const lc = likeClause(['v.content', 'v.author_name', 'v.path', 'pc.title'], q)
       if (lc.sql) { sql += ' AND ' + lc.sql; params.push(...lc.params) }
@@ -2079,7 +2108,7 @@ router.get('/sites/:siteId/comments/search', async (c) => {
     items.push({ id: ai.id, path: ai.path, type: 'ai', authorName: ai.authorName, content: ai.content, model: ai.model, providerName: ai.providerName, createdAt: ai.createdAt })
   }
   for (const vc of visitorResults) {
-    items.push({ id: vc.id, path: vc.path, type: 'visitor', authorName: vc.authorName, content: vc.content, authorEmail: vc.authorEmail || '', parentId: vc.parentId || '', createdAt: vc.createdAt, avatarHash: vc.authorEmail ? md5(vc.authorEmail.toLowerCase().trim()) : '' })
+    items.push({ id: vc.id, path: vc.path, type: 'visitor', authorName: vc.authorName, content: vc.content, authorEmail: vc.authorEmail || '', parentId: vc.parentId || '', createdAt: vc.createdAt, avatarHash: vc.authorEmail ? md5(vc.authorEmail.toLowerCase().trim()) : '', source: 'native', hidden: vc.status === 'hidden' })
   }
 
   // Read fedi config for avatar proxy
@@ -2113,7 +2142,6 @@ router.get('/sites/:siteId/comments/search', async (c) => {
   }
 
   // Fedi comments (via mastodon bindings)
-  const includeHidden = c.req.query('includeHidden') === 'true'
   if (type === 'all' || type === 'fedi') {
     let sql = "SELECT c.id AS cid, c.author_name as authorName, c.author_fedi_id as authorFediId, c.author_avatar as avatar, c.content, c.created_at as createdAt, c.hidden, b.slug as path FROM mastodon_cached_comments c JOIN mastodon_bindings b ON c.binding_id = b.id LEFT JOIN page_cache pc ON b.site_id = pc.site_id AND b.slug = pc.path WHERE b.site_id = ?"
     const params: any[] = [siteId]
@@ -2158,6 +2186,7 @@ router.get('/sites/:siteId/comments/search', async (c) => {
   if (type === 'all' || type === 'visitor') {
     let sql = "SELECT COUNT(*) as cnt FROM visitor_comments WHERE site_id = ?"
     const params: any[] = [siteId]
+    if (!includeHidden) sql += " AND status != 'hidden'"
     if (q) { const lc = likeClause(['content', 'author_name', 'path'], q); if (lc.sql) { sql += ' AND ' + lc.sql; params.push(...lc.params) } }
     const row = raw.prepare(sql).get(...params) as { cnt: number }
     total += row.cnt

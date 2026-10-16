@@ -1623,7 +1623,7 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
   const [page, setPage] = useState(1)
   const perPageOptions = [20, 50, 100]
   const [perPage, setPerPage] = useState(20)
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ action: 'delete' | 'hide'; id: string } | null>(null)
   const [hiddenFediId, setHiddenFediId] = useState<string | null>(null)
   const [showHidden, setShowHidden] = useState(false)
 
@@ -1686,7 +1686,7 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
   }, [searchQ])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['comments-search', siteId, debouncedQ, type, sort, page, perPage],
+    queryKey: ['comments-search', siteId, debouncedQ, type, sort, page, perPage, showHidden],
     queryFn: () => api<any>(`/api/admin/sites/${siteId}/comments/search?q=${encodeURIComponent(debouncedQ)}&type=${type}&sort=${sort}&page=${page}&limit=${perPage}${showHidden ? '&includeHidden=true' : ''}`),
     enabled: siteId.length > 0,
   })
@@ -1697,19 +1697,29 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
 
   const deleteAiMutation = useMutation({
     mutationFn: (commentId: string) => api(`/api/admin/sites/${siteId}/comments/${commentId}`, { method: 'DELETE' }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['comments-search', siteId] }); setConfirmDelete(null) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['comments-search', siteId] }); setConfirmAction(null) },
   })
 
   const deleteVisitorMutation = useMutation({
     mutationFn: (commentId: string) => api(`/api/admin/sites/${siteId}/comments/visitor/${commentId}`, { method: 'DELETE' }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['comments-search', siteId] }); setConfirmDelete(null) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['comments-search', siteId] }); setConfirmAction(null) },
+  })
+
+  const hideVisitorMutation = useMutation({
+    mutationFn: (commentId: string) => api(`/api/admin/sites/${siteId}/comments/visitor/${commentId}/hide`, { method: 'POST' }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['comments-search', siteId] }); setConfirmAction(null) },
+  })
+
+  const unhideVisitorMutation = useMutation({
+    mutationFn: (commentId: string) => api(`/api/admin/sites/${siteId}/comments/visitor/${commentId}/unhide`, { method: 'POST' }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['comments-search', siteId] }) },
   })
 
   const hideFediMutation = useMutation({
     mutationFn: (commentId: string) => api(`/api/admin/sites/${siteId}/comments/fedi/${commentId}`, { method: 'DELETE' }),
     onSuccess: (_, commentId) => {
       queryClient.invalidateQueries({ queryKey: ['comments-search', siteId] })
-      setConfirmDelete(null)
+      setConfirmAction(null)
       setHiddenFediId(commentId)
       setTimeout(() => setHiddenFediId(null), 8000)
     },
@@ -1746,7 +1756,7 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
           <option value="time">{t('sites.sortByTime')}</option>
           <option value="path">{t('sites.sortByPath')}</option>
         </select>
-        {type === 'fedi' && (
+        {(type === 'all' || type === 'visitor' || type === 'fedi') && (
           <button
             type="button"
             onClick={() => { setShowHidden(!showHidden); setPage(1) }}
@@ -1821,7 +1831,14 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
                         <span className="w-7 h-7 rounded-full shrink-0 overflow-hidden"><ProviderIcon name={c.providerName || ''} avatarSvg={getAiAvatarSvg(c)} size={28} /></span>
                       )}
                       <div className="min-w-0">
-                        <div className="text-xs font-medium dark:text-gray-200 truncate" title={c.authorName}>{c.authorName}</div>
+                        <div className="text-xs font-medium dark:text-gray-200 truncate flex items-center gap-1" title={c.authorName}>
+                          <span>{c.authorName}</span>
+                          {c.hidden && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/60 dark:text-orange-300 font-normal">
+                              {t('common.hidden')}
+                            </span>
+                          )}
+                        </div>
                         <span className="text-xs block truncate" title={c.model || c.providerName}>{c.type === 'visitor' ? <span className="text-green-500">{c.source === 'fedi' ? t('fedi.badge') : c.source || t('sites.commentPlugin')}</span> : <span className="text-gray-400">{c.model || c.providerName}</span>}</span>
                       </div>
                     </div>
@@ -1836,23 +1853,71 @@ function CommentsTab({ siteId, setPendingPath }: { siteId: string; setPendingPat
                     : <div className="text-xs text-gray-700 dark:text-gray-300 break-words line-clamp-2 prose prose-xs max-w-none" dangerouslySetInnerHTML={{ __html: renderMarkdown(c.content) }} />
                 }</td>
                 <td className="py-1.5 text-right whitespace-nowrap">
-                  {c.hidden ? (
-                    <SecondaryButton onClick={() => { unhideFediMutation.mutate(c.id); setHiddenFediId(null) }}>{t('common.restore')}</SecondaryButton>
-                  ) : confirmDelete === c.type + '-' + c.id ? (
+                  {confirmAction && confirmAction.id === c.type + '-' + c.id ? (
                     <div className="flex items-center justify-end gap-1.5">
-                      <DangerButton onClick={() => {
-                        if (c.source === 'fedi') hideFediMutation.mutate(c.id)
-                        else if (c.type === 'ai') deleteAiMutation.mutate(c.id)
-                        else deleteVisitorMutation.mutate(c.id)
-                      }} disabled={deleteAiMutation.isPending || deleteVisitorMutation.isPending || hideFediMutation.isPending}>{t('common.confirm')}</DangerButton>
-                      <SecondaryButton onClick={() => setConfirmDelete(null)}>{t('common.cancel')}</SecondaryButton>
+                      {confirmAction.action === 'hide' ? (
+                        <SecondaryButton
+                          onClick={() => {
+                            if (c.source === 'fedi') hideFediMutation.mutate(c.id)
+                            else hideVisitorMutation.mutate(c.id)
+                          }}
+                          disabled={hideFediMutation.isPending || hideVisitorMutation.isPending}
+                          className="!bg-orange-500 hover:!bg-orange-600 !text-white"
+                        >
+                          {t('common.confirm')}
+                        </SecondaryButton>
+                      ) : (
+                        <DangerButton
+                          onClick={() => {
+                            if (c.type === 'ai') deleteAiMutation.mutate(c.id)
+                            else deleteVisitorMutation.mutate(c.id)
+                          }}
+                          disabled={deleteAiMutation.isPending || deleteVisitorMutation.isPending}
+                        >
+                          {t('common.confirm')}
+                        </DangerButton>
+                      )}
+                      <SecondaryButton onClick={() => setConfirmAction(null)}>{t('common.cancel')}</SecondaryButton>
                     </div>
                   ) : (
                     <div className="flex items-center justify-end gap-1.5">
-                      {c.source === 'fedi' ? (
-                        <SecondaryButton onClick={() => setConfirmDelete(c.type + '-' + c.id)} className="!bg-orange-500 hover:!bg-orange-600 !text-white">{t('common.hide')}</SecondaryButton>
+                      {c.hidden ? (
+                        <>
+                          <SecondaryButton
+                            onClick={() => {
+                              if (c.source === 'fedi') {
+                                unhideFediMutation.mutate(c.id)
+                                setHiddenFediId(null)
+                              } else {
+                                unhideVisitorMutation.mutate(c.id)
+                              }
+                            }}
+                            disabled={unhideFediMutation.isPending || unhideVisitorMutation.isPending}
+                          >
+                            {t('common.restore')}
+                          </SecondaryButton>
+                          {c.source !== 'fedi' && (
+                            <DangerButton onClick={() => setConfirmAction({ action: 'delete', id: c.type + '-' + c.id })}>
+                              {t('common.delete')}
+                            </DangerButton>
+                          )}
+                        </>
                       ) : (
-                        <DangerButton onClick={() => setConfirmDelete(c.type + '-' + c.id)}>{t('common.delete')}</DangerButton>
+                        <>
+                          {c.type === 'visitor' && (
+                            <SecondaryButton
+                              onClick={() => setConfirmAction({ action: 'hide', id: c.type + '-' + c.id })}
+                              className="!bg-orange-500 hover:!bg-orange-600 !text-white"
+                            >
+                              {t('common.hide')}
+                            </SecondaryButton>
+                          )}
+                          {c.source !== 'fedi' && (
+                            <DangerButton onClick={() => setConfirmAction({ action: 'delete', id: c.type + '-' + c.id })}>
+                              {t('common.delete')}
+                            </DangerButton>
+                          )}
+                        </>
                       )}
                     </div>
                   )}

@@ -239,7 +239,7 @@ const plugin: Plugin = {
             'UPDATE visitor_comments SET content = ?, edited_at = ? WHERE id = ?'
           ).run(ctx.content, now, ctx.editId)
 
-          ctx.result = { id: ctx.editId, edited: true }
+          ctx.result = { id: ctx.editId, edited: true, content: ctx.content, editedAt: now }
           return ctx
         }
 
@@ -259,7 +259,19 @@ const plugin: Plugin = {
           'INSERT INTO visitor_comments (id, site_id, path, parent_id, author_name, author_email, author_url, content, ip, user_agent, status, visitor_id, notify_on_reply, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         ).run(id, ctx.siteId, ctx.path, parentId, ctx.authorName, ctx.authorEmail, ctx.authorUrl, ctx.content, ctx.ip, ctx.userAgent, 'approved', visitorId, ctx.notifyReplyAuthor ? 1 : 0, now)
 
-        ctx.result = { id }
+        ctx.result = {
+          id,
+          parentId: parentId || '',
+          authorName: ctx.authorName,
+          authorEmail: ctx.authorEmail || '',
+          authorUrl: ctx.authorUrl || '',
+          content: ctx.content,
+          createdAt: now,
+          editedAt: '',
+          avatarHash: ctx.authorEmail ? md5(ctx.authorEmail) : '',
+          visitorId,
+          source: 'native',
+        }
 
         // Send Notification Center alert
         try {

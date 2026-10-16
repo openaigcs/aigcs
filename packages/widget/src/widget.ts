@@ -73,6 +73,7 @@ class AIGCSWidget extends HTMLElement {
   private adminPinSession = ''
   private replyToId = ''
   private editableComments = new Map<string, string>()
+  private recentLocalComments = new Map<string, any>()
   private editCommentId = ''
   private deleteFormId = ''
   private pinRequired = false
@@ -226,9 +227,11 @@ class AIGCSWidget extends HTMLElement {
       const generate = this.autoGenerate ? '' : '&generate=false'
       let url = `${base}/api/widget/${this.domain}/comments?path=${encodeURIComponent(this.path)}${generate}&_v=${this.visitorId}`
       if (force) url += `&_t=${Date.now()}`
-      const res = await fetch(url, {
-        headers: this.etag ? { 'If-None-Match': this.etag } : {},
-      })
+      const headers: Record<string, string> = {}
+      if (!force && this.etag) {
+        headers['If-None-Match'] = this.etag
+      }
+      const res = await fetch(url, { headers })
       if (res.status === 304) return
       this.etag = res.headers.get('ETag') || null
       const json = await res.json() as { code: number; data: WidgetResponse }
@@ -259,7 +262,23 @@ class AIGCSWidget extends HTMLElement {
       }
 
       this.commentsData = json.data.comments || []
-      this.visitorComments = json.data.visitorComments || []
+      const serverComments = json.data.visitorComments || []
+      const serverIds = new Set(serverComments.map((c: any) => c.id))
+      const mergedVisitor = [...serverComments]
+      const now = Date.now()
+      for (const [id, localComment] of this.recentLocalComments) {
+        if (serverIds.has(id)) {
+          this.recentLocalComments.delete(id)
+        } else {
+          const createdTime = new Date(localComment.createdAt).getTime()
+          if (now - createdTime < 60000) {
+            mergedVisitor.push(localComment)
+          } else {
+            this.recentLocalComments.delete(id)
+          }
+        }
+      }
+      this.visitorComments = mergedVisitor
       const rawConfig = (json.data as any)._config || {}
       this.config = rawConfig
       this.pluginConfig = Array.isArray(rawConfig.commentPlugin)
@@ -814,6 +833,7 @@ class AIGCSWidget extends HTMLElement {
       })
       const json = await res.json() as { code: number }
       if (json.code === 0) {
+        this.recentLocalComments.delete(id)
         this.visitorComments = this.visitorComments.filter(c => c.id !== id)
         this.renderContent()
       }
@@ -962,6 +982,17 @@ class AIGCSWidget extends HTMLElement {
       const json = await res.json()
       if (json.code === 0) {
         this.editCommentId = ''
+        const edited = this.visitorComments.find(c => c.id === id)
+        if (edited) {
+          edited.content = ta.value.trim()
+          ;(edited as any).editedAt = new Date().toISOString()
+          if (this.recentLocalComments.has(id)) {
+            const local = this.recentLocalComments.get(id)
+            local.content = ta.value.trim()
+            local.editedAt = (edited as any).editedAt
+          }
+        }
+        this.renderContent()
         this.fetchComments(true)
       }
     } catch {}
@@ -1023,6 +1054,7 @@ class AIGCSWidget extends HTMLElement {
       try {
         const json = await res.json()
         if (json.code === 0) {
+          this.recentLocalComments.delete(id)
           this.visitorComments = this.visitorComments.filter(c => c.id !== id)
           this.renderContent()
           return
@@ -1206,7 +1238,28 @@ class AIGCSWidget extends HTMLElement {
           contentInput.value = ''
           this.pinRequired = false
           this.captchaToken = ''
-          setTimeout(() => this.fetchComments(true), 1500)
+          this.replyToId = ''
+
+          const createdComment: any = {
+            id: json.data.id,
+            parentId: json.data.parentId || body.parentId || '',
+            authorName: json.data.authorName || name,
+            authorEmail: json.data.authorEmail || email,
+            authorUrl: json.data.authorUrl || url,
+            content: json.data.content || content,
+            createdAt: json.data.createdAt || new Date().toISOString(),
+            avatarHash: json.data.avatarHash || '',
+            visitorId: this.visitorId,
+            source: 'native',
+            reactions: {},
+            userVoted: [],
+          }
+          this.recentLocalComments.set(createdComment.id, createdComment)
+          if (!this.visitorComments.some(c => c.id === createdComment.id)) {
+            this.visitorComments.push(createdComment)
+          }
+          this.renderContent()
+          this.fetchComments(true)
         }
       } else {
         statusEl.textContent = json.data?.error || this.t('formError')
